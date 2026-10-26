@@ -7,7 +7,7 @@ validation" của đề.
 
 ---
 
-## Khuyến nghị 1: "Tặng khuyến mãi tràn lan có thể lỗ margin (-£63,000 ở kịch
+## Khuyến nghị 1: "Tặng khuyến mãi tràn lan có thể lỗ margin (-£62,890 ở kịch
 bản aggressive)"
 
 - **Data**: `data/processed/customer_scores.csv` cột `predicted_future_value_gbm`
@@ -22,9 +22,9 @@ bản aggressive)"
   v_i đã được validate — xem Khuyến nghị 3), nhưng công thức margin được unit
   test (`tests/test_decision_scenario.py::test_incremental_margin_*`, 2 test).
 - **Output**: `outputs/scenario_table.csv`, hàng `aggressive`, cột
-  `total_margin_non_targeted_blanket = -63,005`.
+  `total_margin_non_targeted_blanket = -62,889.57`.
 
-## Khuyến nghị 2: "Targeting đúng mang lại +£28,977 ở cùng kịch bản"
+## Khuyến nghị 2: "Targeting đúng mang lại +£28,971 ở cùng kịch bản"
 
 - **Data**: như trên.
 - **Analysis**: cùng hàm `build_scenario_table()`, cột
@@ -35,7 +35,7 @@ bản aggressive)"
 - **Validation**: `tests/test_decision_scenario.py::test_budget_constrained_selection_*`
   xác nhận logic lọc margin>0 đúng.
 - **Output**: `outputs/scenario_table.csv`, hàng `aggressive`, cột
-  `total_margin_targeted_positive_only = 28,976.69`.
+  `total_margin_targeted_positive_only = 28,971.10`.
 
 ## Khuyến nghị 3: "Dùng model GBM (PR-AUC 0.82) để dự báo predicted_future_value/
 proba — nền tảng cho mọi tính toán margin ở trên"
@@ -87,13 +87,13 @@ hàng, +£22,787"
 - **Assumption**: `contact_cost_per_customer=0.50`, `budget_total=750.0`.
 - **Validation**: `tests/test_decision_scenario.py::test_budget_constrained_selection_respects_cap_and_positivity`.
 - **Output**: `outputs/scenario_table.csv` hàng `moderate`, cột
-  `total_margin_budget_constrained=22,787`, `n_customers_budget_constrained=1500`.
+  `total_margin_budget_constrained=22,787.07`, `n_customers_budget_constrained=1500`.
 
 ## Khuyến nghị 6: "Kết quả nhạy nhất với discount_pct và response_rate"
 
 - **Data/Analysis**: `src/05_decision_scenario.py::tornado_sensitivity()` —
   vary từng tham số quanh base case (moderate scenario), đo swing lên
   `total_margin_targeted_positive_only`.
-- **Output**: `outputs/tornado_sensitivity.csv` — `response_rate` swing=143,516
-  (lớn nhất), `discount_pct` swing=104,602 (thứ 2), `at_risk_response_multiplier`
+- **Output**: `outputs/tornado_sensitivity.csv` — `response_rate` swing=143,522
+  (lớn nhất), `discount_pct` swing=104,613 (thứ 2), `at_risk_response_multiplier`
   swing=13,750, `gross_margin_pct` swing=13,017.

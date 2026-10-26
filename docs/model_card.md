@@ -44,8 +44,13 @@ GBM thắng rõ ràng trên cả PR-AUC và ROC-AUC cho bài toán classificatio
 | Model | MAE | RMSE |
 |---|---|---|
 | Naive baseline | 1,093.3 | 5,065.1 |
-| Linear Regression | 593.3 [521.1, 683.1] | **1,435.4 [985.9, 1,904.2]** |
-| Gradient Boosting | **531.2 [432.8, 679.7]** | 2,048.1 [835.6, 3,280.9] |
+| Linear Regression | 562.7 [489.9, 652.7] | **1,431.0 [978.2, 1,901.2]** |
+| Gradient Boosting | **530.5 [432.6, 679.7]** | 2,048.0 [835.3, 3,280.9] |
+
+(Số liệu trên đã áp dụng `clip_nonneg` — xem mục "Bug đã phát hiện" bên dưới.
+Trước khi clip, Linear Regression có MAE 593.3 vì 827/1,009 khách hàng trong
+test set bị dự đoán `future_value` âm — một dấu hiệu model lỗi rõ ràng vì
+ground truth không bao giờ âm.)
 
 ⚠️ **Phát hiện quan trọng, không che giấu**: GBM có MAE tốt hơn (sai số
 *điển hình* thấp hơn) nhưng RMSE **tệ hơn** Linear Regression (sai số bị
@@ -69,6 +74,52 @@ khách hàng giá trị cực cao nên RMSE ổn định hơn, dù MAE trung bì
 một cách mù quáng cho quyết định cá nhân hóa ở nhóm khách hàng giá trị cực
 cao (`monetary` top 1%) mà không review thủ công, vì đây chính là nhóm GBM
 có rủi ro dự đoán lệch lớn nhất.
+
+### Bug đã phát hiện qua senior code review (sau khi pipeline đã "chạy đúng")
+
+Một senior code review độc lập (không chỉ tự kiểm tra của người viết) phát
+hiện 7 vấn đề thật, đã verify bằng số liệu cụ thể trên dữ liệu thật (không
+chỉ sửa theo lý thuyết) và fix toàn bộ:
+
+1. **Giá trị dự đoán âm không được clip** — `future_value` ground truth luôn
+   ≥ 0, nhưng model có thể dự đoán âm (827/1,009 khách hàng với Linear
+   Regression, 4/5,041 với GBM). Hậu quả nghiêm trọng hơn con số nghe có vẻ
+   nhỏ: với khách hàng Champions (response multiplier thấp), giá trị dự đoán
+   âm × bracket âm trong công thức margin = **margin dương giả**, khiến
+   khách hàng 17850 bị gắn nhầm "nurture" dù model dự đoán giá trị âm/vô
+   nghĩa cho họ. Fix: `utils.clip_nonneg()`, áp dụng ngay sau mọi lệnh
+   `.predict()` cho `future_value`. Test: `tests/test_utils.py`.
+2. **`models/registry.json` dùng `run_id` cố định** (`"advanced_gbm_v1"`,
+   không có timestamp/git_commit) cho model GBM — chạy lại pipeline nhiều
+   lần tạo nhiều entry trùng tên, không phân biệt được, phá vỡ mục đích
+   audit trail. Fix: run_id theo timestamp UTC + `git_commit_hash()`, nhất
+   quán với entry baseline.
+3. **RFM segment tính lại trên test subset** (~1,000 dòng) thay vì dùng lại
+   segment đã tính trên toàn population (5,041 dòng) trong
+   `error_by_segment.csv` — verify cho thấy **93/1,009 khách hàng (9.2%)**
+   bị đổi nhãn segment do quantile cut-point khác nhau, khiến phân tích lỗi
+   theo segment không nhất quán với segment hiển thị ở dashboard/
+   customer_scores.csv. Fix: tính `rfm_segment` 1 lần trên toàn `df` trước
+   khi split train/test, dùng lại cho cả model training context lẫn error
+   analysis.
+4. **`bootstrap_ci` có thể crash** nếu toàn bộ resample đều lỗi (vd PR-AUC
+   trên resample chỉ có 1 class, dễ xảy ra ở cutoff nhỏ/mất cân bằng của
+   rolling-origin validation) — `np.percentile` trên mảng rỗng sẽ raise.
+   Fix: bọc try/except, trả về CI=[NaN, NaN] kèm cảnh báo log thay vì crash
+   toàn bộ pipeline.
+5. **Serving API (`src/serve.py`) không validate `rfm_segment`** — nhận bất
+   kỳ string nào, lỗi segment không hợp lệ chỉ bị bắt sâu trong business
+   logic, trả về HTTP 500 kèm stack trace thay vì 422 validation error rõ
+   ràng. Fix: `Literal["Champions","Loyal","At-risk","Lost"]` thay cho `str`.
+6. **`bootstrap_ci` bị copy-paste y hệt giữa `03_baseline_models.py` và
+   `04_advanced_models.py`** — vi phạm chính convention đã ghi trong
+   `utils.py` docstring. Fix: gộp về `utils.bootstrap_ci`, dùng chung.
+7. **Tính dư thừa** trong `compute_rfm_features`: `avg_order_value` tính lại
+   `nunique("Invoice")` lần 2 dù giá trị này đã có sẵn ở cột `frequency`
+   trong cùng 1 lệnh `.agg()`. Fix: `avg_order_value = monetary / frequency`.
+
+Toàn bộ fix đã re-run `src/06_final_qa.py` (pipeline từ đầu + 19 unit test +
+7 invariant check) — PASSED.
 
 ### Rolling-origin validation (ổn định qua thời gian)
 

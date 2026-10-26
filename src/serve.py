@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Literal
 
 import joblib
 from fastapi import FastAPI
@@ -19,7 +20,7 @@ from pydantic import BaseModel, Field
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from utils import load_config  # noqa: E402
+from utils import clip_nonneg, load_config  # noqa: E402
 
 FEATURE_COLS = [
     "recency_days", "frequency", "monetary",
@@ -39,7 +40,7 @@ class CustomerFeatures(BaseModel):
     n_distinct_products: int = Field(..., ge=0)
     tenure_days: float = Field(..., ge=0)
     return_rate: float = Field(..., ge=0, le=1)
-    rfm_segment: str = Field(..., description="Champions | Loyal | At-risk | Lost")
+    rfm_segment: Literal["Champions", "Loyal", "At-risk", "Lost"]
 
 
 class ScoreResponse(BaseModel):
@@ -73,7 +74,7 @@ def score(customer: CustomerFeatures):
     X = row[FEATURE_COLS]
 
     proba = float(_state["clf"].predict_proba(X)[:, 1][0])
-    value = float(_state["reg"].predict(X)[0])
+    value = float(clip_nonneg(_state["reg"].predict(X))[0])
 
     dec = config["decision"]
     ref = next(s for s in dec["discount_response_scenarios"] if s["name"] == dec["reference_scenario"])

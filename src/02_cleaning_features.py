@@ -118,11 +118,13 @@ def compute_rfm_features(obs_clean: pd.DataFrame, return_rate: pd.Series, as_of:
         recency_days=("InvoiceDate", lambda s: (as_of - s.max()).days),
         frequency=("Invoice", "nunique"),
         monetary=("Revenue", "sum"),
-        avg_order_value=("Revenue", lambda s: s.sum() / obs_clean.loc[s.index, "Invoice"].nunique()),
         n_distinct_products=("StockCode", "nunique"),
         tenure_days=("InvoiceDate", lambda s: (as_of - s.min()).days),
         country=("Country", "first"),
     )
+    # avg_order_value = monetary / frequency — tránh tính lại nunique("Invoice")
+    # lần 2 (đã có sẵn ở "frequency" cùng 1 groupby.agg() phía trên).
+    grouped["avg_order_value"] = grouped["monetary"] / grouped["frequency"]
     grouped = grouped.join(return_rate, how="left")
     grouped["return_rate"] = grouped["return_rate"].fillna(0.0)
     return grouped.reset_index()

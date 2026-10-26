@@ -15,7 +15,6 @@ Chạy: python src/03_baseline_models.py
 from __future__ import annotations
 
 import json
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -30,21 +29,21 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 
-from utils import PROJECT_ROOT, get_logger, load_config, processed_path, set_seed
+from utils import (
+    PROJECT_ROOT,
+    bootstrap_ci,
+    clip_nonneg,
+    get_logger,
+    git_commit_hash,
+    load_config,
+    processed_path,
+    set_seed,
+)
 
 logger = get_logger("03_baseline_models")
 
 MODELS_DIR = PROJECT_ROOT / "models"
 REGISTRY_PATH = MODELS_DIR / "registry.json"
-
-
-def git_commit_hash() -> str:
-    try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"], cwd=PROJECT_ROOT
-        ).decode().strip()
-    except Exception:
-        return "unknown"
 
 
 def load_dataset(config: dict) -> pd.DataFrame:
@@ -78,21 +77,6 @@ FEATURE_COLS = [
     "recency_days", "frequency", "monetary",
     "avg_order_value", "n_distinct_products", "tenure_days", "return_rate",
 ]
-
-
-def bootstrap_ci(y_true: np.ndarray, y_score: np.ndarray, metric_fn, n_boot: int, seed: int) -> tuple[float, float, float]:
-    rng = np.random.default_rng(seed)
-    n = len(y_true)
-    stats = []
-    for _ in range(n_boot):
-        idx = rng.integers(0, n, n)
-        try:
-            stats.append(metric_fn(y_true[idx], y_score[idx]))
-        except ValueError:
-            continue
-    point = metric_fn(y_true, y_score)
-    lo, hi = np.percentile(stats, [2.5, 97.5])
-    return point, lo, hi
 
 
 def register_run(entry: dict) -> None:
@@ -156,7 +140,7 @@ def main() -> None:
     # --- Linear regression: future_value ---
     reg = LinearRegression()
     reg.fit(X_train, train_df["future_value"])
-    pred_value = reg.predict(X_test)
+    pred_value = clip_nonneg(reg.predict(X_test))
     mae, mae_lo, mae_hi = bootstrap_ci(
         test_df["future_value"].to_numpy(), pred_value, mean_absolute_error,
         config["validation"]["n_bootstrap"], config["seed"],
@@ -187,7 +171,7 @@ def main() -> None:
 
     # --- customer_scores.csv (deliverable) ---
     full_proba = clf.predict_proba(df[FEATURE_COLS])[:, 1]
-    full_value = reg.predict(df[FEATURE_COLS])
+    full_value = clip_nonneg(reg.predict(df[FEATURE_COLS]))
     scores = df[["Customer ID", "country", "rfm_segment"] + FEATURE_COLS].copy()
     scores["predicted_repeat_purchase_proba"] = full_proba
     scores["predicted_future_value"] = full_value

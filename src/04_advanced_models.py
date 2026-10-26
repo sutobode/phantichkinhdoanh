@@ -24,6 +24,7 @@ Chạy: python src/04_advanced_models.py
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from importlib import import_module
 from pathlib import Path
 
@@ -41,7 +42,18 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 
-from utils import PROJECT_ROOT, get_logger, load_config, merge_or_replace_columns, outputs_path, processed_path, set_seed
+from utils import (
+    PROJECT_ROOT,
+    bootstrap_ci,
+    clip_nonneg,
+    get_logger,
+    git_commit_hash,
+    load_config,
+    merge_or_replace_columns,
+    outputs_path,
+    processed_path,
+    set_seed,
+)
 
 logger = get_logger("04_advanced_models")
 cleaning = import_module("02_cleaning_features")
@@ -86,21 +98,6 @@ def build_dataset(raw_filtered: pd.DataFrame, obs_start: str, obs_end: str, outc
     features = cleaning.compute_rfm_features(obs_clean, return_rate, as_of)
     labels = cleaning.compute_labels(outcome_clean, features["Customer ID"])
     return features.merge(labels, on="Customer ID", how="inner")
-
-
-def bootstrap_ci(y_true: np.ndarray, y_score: np.ndarray, metric_fn, n_boot: int, seed: int):
-    rng = np.random.default_rng(seed)
-    n = len(y_true)
-    stats = []
-    for _ in range(n_boot):
-        idx = rng.integers(0, n, n)
-        try:
-            stats.append(metric_fn(y_true[idx], y_score[idx]))
-        except ValueError:
-            continue
-    point = metric_fn(y_true, y_score)
-    lo, hi = np.percentile(stats, [2.5, 97.5])
-    return point, lo, hi
 
 
 def rolling_origin_validation(raw_filtered: pd.DataFrame, config: dict) -> pd.DataFrame:
@@ -172,6 +169,16 @@ def main() -> None:
     )
     logger.info("Double-check: build lại dataset chính khớp với bước 02 (%d khách hàng)", len(df))
 
+    # RFM segment tính trên TOÀN BỘ population (df) TRƯỚC khi split train/test
+    # — PHẢI nhất quán với segment đã lưu trong customer_scores.csv
+    # (03_baseline_models.py cũng tính trên toàn population). Nếu tính lại
+    # trên riêng test_df (~1000 dòng), quantile cut point sẽ khác, gây lệch
+    # nhãn segment cho khách hàng nằm gần biên quartile (đã phát hiện bug này
+    # thật: 93/1009 khách hàng trong test set bị đổi nhãn segment nếu tính
+    # trên test_df thay vì toàn population).
+    baseline = import_module("03_baseline_models")
+    df["rfm_segment"] = baseline.rfm_segment(df)
+
     train_df, test_df = train_test_split(
         df, test_size=0.2, random_state=config["seed"], stratify=df["repeat_purchase"]
     )
@@ -189,7 +196,7 @@ def main() -> None:
 
     gbm_reg = GradientBoostingRegressor(random_state=config["seed"])
     gbm_reg.fit(X_train, train_df["future_value"])
-    pred_gbm_value = gbm_reg.predict(X_test)
+    pred_gbm_value = clip_nonneg(gbm_reg.predict(X_test))
 
     n_boot = config["validation"]["n_bootstrap"]
     pr_auc_gbm, pr_lo, pr_hi = bootstrap_ci(
@@ -260,12 +267,12 @@ def main() -> None:
         logger.warning("Không tính được SHAP: %s", e)
 
     # --- Error analysis theo RFM segment ---
+    # test_df["rfm_segment"] đã có sẵn (tính trên toàn population ở trên,
+    # không tính lại trên riêng test_df — xem comment phía trên về bug đã fix).
     test_df = test_df.copy()
     test_df["pred_proba"] = proba_gbm
     test_df["abs_error_class"] = np.abs(test_df["repeat_purchase"] - test_df["pred_proba"])
 
-    baseline = import_module("03_baseline_models")
-    test_df["rfm_segment"] = baseline.rfm_segment(test_df)
     error_by_segment = test_df.groupby("rfm_segment")["abs_error_class"].mean().sort_values(ascending=False)
     logger.info("Error analysis (mean abs error của GBM) theo RFM segment:\n%s", error_by_segment.to_string())
     error_by_segment.to_csv(outputs_path("error_by_segment.csv"))
@@ -302,8 +309,10 @@ def main() -> None:
     # --- Save models + registry ---
     joblib.dump(gbm_clf, MODELS_DIR / "gbm_classifier_v1.joblib")
     joblib.dump(gbm_reg, MODELS_DIR / "gbm_regressor_v1.joblib")
+    run_id = f"advanced_gbm_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
     register_run({
-        "run_id": "advanced_gbm_v1",
+        "run_id": run_id,
+        "git_commit": git_commit_hash(),
         "models": ["gradient_boosting_classifier", "gradient_boosting_regressor"],
         "metrics": {
             "gbm_pr_auc": [pr_auc_gbm, pr_lo, pr_hi],
@@ -325,7 +334,7 @@ def main() -> None:
     scores = pd.read_csv(scores_path)
 
     full_proba_gbm = gbm_clf.predict_proba(df[FEATURE_COLS])[:, 1]
-    full_value_gbm = gbm_reg.predict(df[FEATURE_COLS])
+    full_value_gbm = clip_nonneg(gbm_reg.predict(df[FEATURE_COLS]))
     gbm_scores = pd.DataFrame({
         "Customer ID": df["Customer ID"],
         "predicted_repeat_purchase_proba_gbm": full_proba_gbm,

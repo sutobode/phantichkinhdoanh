@@ -131,10 +131,11 @@ Rule tối thiểu trong đề chỉ là "ngưỡng pass". Để đạt điểm 
 ## TUẦN 4 — Decision Logic & Business Impact
 
 - [x] `src/05_decision_scenario.py` — 3 scenario (conservative/moderate/aggressive), công thức incremental margin dựa trên segment_response_multiplier (lý thuyết uplift modeling), ghi rõ scenario-based không phải causal
-- [x] Kết quả nổi bật: blanket policy ở kịch bản aggressive **lỗ -£63,005**; targeted policy cùng kịch bản **+£28,977** (minh họa đúng "tăng margin không over-discount")
+- [x] Kết quả nổi bật: blanket policy ở kịch bản aggressive **lỗ -£62,890**; targeted policy cùng kịch bản **+£28,971** (minh họa đúng "tăng margin không over-discount")
 - [x] **[Điểm cao]** Budget-constrained optimization: greedy top-N (tối ưu CHÍNH XÁC vì cost đồng nhất), budget £750 → 1,500 khách hàng, +£22,787 (kịch bản moderate)
-- [x] **[Điểm cao]** Customer-level recommendation: nurture (2,073) / retain (1,459) / no-offer (1,509), gắn lý thuyết uplift (sure things/persuadables/lost causes)
-- [x] **[Điểm cao]** Bootstrap CI cho total incremental margin: 26,034 [25,169, 26,955]
+- [x] **[Điểm cao]** Customer-level recommendation: nurture (2,072) / retain (1,459) / no-offer (1,510), gắn lý thuyết uplift (sure things/persuadables/lost causes)
+- [x] **[Điểm cao]** Bootstrap CI cho total incremental margin: 26,033 [25,200, 26,908]
+- [x] **Senior code review** (độc lập, sau khi "xong"): phát hiện 7 bug/vấn đề thật (giá trị dự đoán âm gây margin dương giả, registry run_id trùng, RFM segment tính lại trên test-subset gây sai nhãn 93/1009 khách hàng, bootstrap_ci có thể crash, serve.py thiếu validate input, code trùng lặp, tính toán dư thừa) — đã fix toàn bộ + viết test khóa lại, xem `docs/model_card.md` mục "Bug đã phát hiện qua senior code review"
 - [x] **[Điểm cao]** Tornado sensitivity: response_rate (swing 143,516) và discount_pct (104,602) là 2 yếu tố nhạy nhất, chart `outputs/figures/tornado_sensitivity.png`
 - [x] 7 unit test cho logic tài chính (`tests/test_decision_scenario.py`) — công thức margin, budget optimization, recommendation logic
 

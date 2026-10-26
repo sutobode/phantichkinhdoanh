@@ -11,14 +11,14 @@ giảm giá tràn lan và làm mất margin ở những khách hàng đã sẵn 
 
 Gửi khuyến mãi **cho TẤT CẢ khách hàng** (chính sách hiện tại/mặc định ở
 nhiều nơi) có thể **phá hủy lợi nhuận** nếu mức giảm giá lớn: mô phỏng cho
-thấy ở kịch bản giảm giá 20%, chính sách "tặng cho tất cả" lỗ **-£63,000**
+thấy ở kịch bản giảm giá 20%, chính sách "tặng cho tất cả" lỗ **-£62,890**
 margin kỳ vọng — vì nhiều khách hàng (nhóm "Champions") vốn đã mua đều đặn dù
 không có khuyến mãi, nên giảm giá cho họ chỉ làm mất margin, không tạo thêm
 doanh thu.
 
 **Nhắm mục tiêu đúng khách hàng** đảo ngược hoàn toàn kết quả: cùng kịch bản
 giảm giá 20%, chỉ gửi khuyến mãi cho nhóm khách hàng phù hợp mang lại
-**+£28,977** margin kỳ vọng — chênh lệch **~£92,000** so với tặng tràn lan.
+**+£28,971** margin kỳ vọng — chênh lệch **~£91,860** so với tặng tràn lan.
 
 ## Khuyến nghị
 
@@ -28,13 +28,13 @@ gian):
 
 | Nhóm | Số khách hàng | Hành động | Lý do |
 |---|---|---|---|
-| **Nurture** (At-risk, Loyal) | 2,073 | Gửi khuyến mãi | Nhóm "dễ bị tác động" — khuyến mãi tạo doanh thu tăng thêm đủ bù chi phí giảm giá |
+| **Nurture** (At-risk, Loyal) | 2,072 | Gửi khuyến mãi | Nhóm "dễ bị tác động" — khuyến mãi tạo doanh thu tăng thêm đủ bù chi phí giảm giá |
 | **Retain** (Champions) | 1,459 | Chăm sóc KHÔNG dùng khuyến mãi (loyalty, ưu tiên dịch vụ) | Đã mua đều đặn, giảm giá chỉ lãng phí margin |
-| **No-offer** (Lost, giá trị thấp) | 1,509 | Không đầu tư | Khả năng phản hồi thấp, chi phí không đáng |
+| **No-offer** (Lost, giá trị thấp) | 1,510 | Không đầu tư | Khả năng phản hồi thấp, chi phí không đáng |
 
 **Chính sách đề xuất (kịch bản "moderate": giảm giá 10%, ngân sách liên hệ
 £750):** nhắm mục tiêu tối đa **1,500 khách hàng** nhóm Nurture có margin kỳ
-vọng cao nhất → **+£22,787** margin kỳ vọng (so với +£8,830 nếu tặng tràn
+vọng cao nhất → **+£22,787** margin kỳ vọng (so với +£8,928 nếu tặng tràn
 lan cùng mức giảm giá).
 
 ## Giả định quan trọng (cần lưu ý)
