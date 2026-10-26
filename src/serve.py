@@ -26,7 +26,7 @@ FEATURE_COLS = [
     "avg_order_value", "n_distinct_products", "tenure_days", "return_rate",
 ]
 
-app = FastAPI(title="Customer Value & Promotion Targeting — Scoring API")
+app = FastAPI(title="Customer Value — optional GBM deployment/demo API (not policy evaluation)")
 
 _state: dict = {}
 
@@ -45,8 +45,9 @@ class CustomerFeatures(BaseModel):
 class ScoreResponse(BaseModel):
     predicted_repeat_purchase_proba: float
     predicted_future_value: float
-    incremental_margin_reference_scenario: float
+    simulated_net_incremental_margin: float
     final_recommendation: str
+    score_kind: str = "deployment_demo_not_evaluation"
 
 
 @app.on_event("startup")
@@ -73,20 +74,20 @@ def score(customer: CustomerFeatures):
     X = row[FEATURE_COLS]
 
     proba = float(_state["clf"].predict_proba(X)[:, 1][0])
-    value = float(_state["reg"].predict(X)[0])
+    value = max(0.0, float(_state["reg"].predict(X)[0]))
 
     dec = config["decision"]
     ref = next(s for s in dec["discount_response_scenarios"] if s["name"] == dec["reference_scenario"])
     eff_rr = decision.effective_response_rate(row, ref["response_rate"], dec["segment_response_multiplier"])
     margin = decision.incremental_margin(
-        pd.Series([value]), eff_rr, ref["discount_pct"], dec["gross_margin_pct"]
+        pd.Series([value]), eff_rr, ref["discount_pct"], dec["gross_margin_pct"], dec["contact_cost_per_customer"]
     ).iloc[0]
-    recommendation = decision.assign_recommendation(row.assign(predicted_future_value_gbm=value), pd.Series([margin])).iloc[0]
+    recommendation = decision.assign_recommendation(row.assign(baseline_future_revenue=value), pd.Series([margin])).iloc[0]
 
     return ScoreResponse(
         predicted_repeat_purchase_proba=proba,
         predicted_future_value=value,
-        incremental_margin_reference_scenario=float(margin),
+        simulated_net_incremental_margin=float(margin),
         final_recommendation=recommendation,
     )
 

@@ -8,26 +8,52 @@ giá lãng phí cho khách hàng vốn đã mua đều đặn)?
 
 ## Unit of analysis
 
-1 khách hàng (`Customer ID`), giới hạn ở những khách hàng có ít nhất 1 giao
-dịch hợp lệ trong observation window.
+1 customer snapshot (`Customer ID`, `decision_date`), with at least one valid
+purchase before that decision date. A customer may recur at earlier origins.
 
 ## Target / outcome
 
 - **Target 1 (classification)**: `repeat_purchase` — khách hàng có mua lại
   trong outcome window hay không (0/1).
-- **Target 2 (regression)**: `future_value` — tổng doanh thu khách hàng tạo
-  ra trong outcome window.
+- **Target 2 (regression)**: `future_gross_sales` — positive, non-cancelled
+  sales revenue in the outcome window, zero if none. This is NOT net sales
+  after returns, profit, or lifetime CLV.
 
 ## Prediction horizon
 
-- Observation window: 2009-12-01 → 2011-06-30 (19 tháng) — dùng để tính mọi
-  feature.
-- Outcome window: 2011-07-01 → 2011-12-09 (~5.3 tháng) — dùng để tạo nhãn.
-- Lý do chọn mốc này: xem `outputs/logs/01_eda.log` và
-  `outputs/monthly_transaction_profile.csv` — dataset có 25 tháng dữ liệu,
-  tỷ lệ repeat-purchase ổn định ở mốc 180 ngày (58.1%), nên outcome window
-  ~5.3 tháng đủ để có label có ý nghĩa mà vẫn giữ đủ lịch sử cho observation
-  window.
+Fixed **90-day** horizon, expanding observation history from 2009-12-01.
+Decision timestamps are midnight; features use transactions strictly before T.
+
+| Role | Decision T | Observation (inclusive dates) | Outcome (inclusive dates) |
+|---|---|---|---|
+| Train | 2010-12-01 | 2009-12-01–2010-11-30 | 2010-12-01–2011-02-28 |
+| Train | 2011-03-01 | 2009-12-01–2011-02-28 | 2011-03-01–2011-05-29 |
+| Validation | 2011-06-01 | 2009-12-01–2011-05-31 | 2011-06-01–2011-08-29 |
+| Final test | 2011-09-10 | 2009-12-01–2011-09-09 | 2011-09-10–2011-12-08 |
+
+Train origins predict validation. Then refit the predeclared model on train plus
+validation snapshots to predict final test. Training labels end before each
+evaluation decision: 2011-05-30 exclusive before validation, 2011-08-30 exclusive
+before final test. Final-test outcomes are never fitted or used for model choice.
+The last recorded day, 2011-12-09, is potentially partial and excluded from labels.
+The script checks actual raw coverage and rejects an incomplete configured horizon.
+Dates are configurable in `config/params.yaml`; no random customer holdout is used.
+
+## Policy evaluation
+
+Only final-test predictions feed the main campaign simulation and dashboard.
+Baseline: RFM + logistic regression + clipped linear future-gross-sales predictions.
+GBM is an optional, separately reported comparison; select the policy source before
+inspecting final-test results. No current full-population demo scores enter metrics.
+
+Compare seeded random, RFM-ranked, and positive-NET-margin-ranked contacts with
+the same actual N and maximum capacity (floor(£750/£0.50) = 1,500).
+Contact costs are deducted. With unchanged unit product costs:
+`net = max(predicted_gross_sales, 0) * ((1+r)*(g-d)-g) - contact_cost`.
+`r` means assumed proportional pre-discount sales-volume growth, not response
+probability. Predicted sales describe historical behavior, not a no-promotion
+counterfactual. Under all three configured scenarios no positive net contribution
+is possible; no-contact is an admissible decision, not a reason to change assumptions.
 
 ## Vì sao KHÔNG dùng causal uplift
 

@@ -150,8 +150,8 @@ def test_labels_only_use_outcome_window(sample_transactions):
     cust1 = labels[labels["Customer ID"] == 1].iloc[0]
     # outcome window của customer 1: invoice 5 (Qty 1 * Price 8 = 8), invoice C7 bị loại
     assert cust1["repeat_purchase"] == 1
-    assert cust1["future_value"] == pytest.approx(8.0)
+    assert cust1["future_gross_sales"] == pytest.approx(8.0)
 
     cust2 = labels[labels["Customer ID"] == 2].iloc[0]
     assert cust2["repeat_purchase"] == 0
-    assert cust2["future_value"] == 0.0
+    assert cust2["future_gross_sales"] == 0.0

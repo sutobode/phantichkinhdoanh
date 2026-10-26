@@ -7,8 +7,9 @@
 - **URL tải trực tiếp:** https://archive.ics.uci.edu/static/public/502/online+retail+ii.zip
 - **Ngày tải:** 2026-10-26
 - **File gốc:** `online_retail_II.xlsx`, 2 sheet: "Year 2009-2010", "Year 2010-2011"
-- **Phạm vi dùng:** toàn bộ dataset (hai năm), chia observation/outcome window —
-  giá trị cụ thể chốt sau khi chạy `src/01_eda.py` (xem `config/params.yaml`).
+- **Phạm vi dùng:** both sheets; expanding snapshots with 90-day outcomes.
+  Exact dates: `docs/problem_statement.md` / `config/params.yaml`.
+  Final outcome ends 2011-12-09 exclusive; the potentially partial last day is excluded.
 
 ## Raw columns
 
@@ -32,38 +33,44 @@ vs outcome window) được thực hiện **trước**, sau đó mới loại ca
 và `tests/test_features.py` (có test leakage riêng cho `return_rate` và cho
 boundary ngày cuối mỗi window).
 
-Raw: 1,067,371 dòng (2 sheet gộp lại).
+The original source log reported 1,067,371 raw rows. New snapshot cleaning counts
+must be regenerated from the workbook; former 5,041-customer/window counts are
+superseded, not current temporal-test results.
 
-| Bước | Điều kiện loại | Phạm vi | Số dòng loại |
-|---|---|---|---|
-| 1 | Customer ID null | Toàn bộ dataset (time-independent) | 243,007 |
-| 2 | Invoice bắt đầu bằng "C" | Observation window | 14,080 |
-| 3 | Price <= 0 | Observation window | 44 |
-| 4 | Invoice bắt đầu bằng "C" | Outcome window | 4,664 |
-| 5 | Price <= 0 | Outcome window | 27 |
-| **Tổng** | | | **261,822 / 1,067,371 (24.53%)** |
+1. Audit exact duplicates on the concatenated original rows, before type coercion:
+   `raw.duplicated().sum()` counts repeats beyond the first occurrence.
+   **Retain duplicates**: the source does not establish that identical lines are
+   errors. Write count and policy to `outputs/data_quality.csv` and the step-02 log.
+   The actual count is pending raw-data execution, not assumed to be zero.
+2. Drop missing customer IDs globally (time-independent).
+3. At each snapshot, split time windows before computing cancellation rate.
+4. Separately remove C-prefixed invoices, Quantity <=0, and Price <=0 in each window.
+5. Compute Revenue = Quantity × Price. Per-window removals are logged.
 
-Quantity <= 0 không loại thêm dòng nào ở cả 2 window (đã trùng với cancellation,
-Online Retail II không có quantity âm ngoài cancellation).
-
-Observation window raw = 594,423 dòng → 580,299 dòng sạch.
-Outcome window raw = 229,941 dòng → 225,250 dòng sạch.
-(594,423 + 229,941 = 824,364 = đúng bằng số dòng sau khi loại Customer ID null —
-xác nhận split không làm rơi/trùng dòng nào ở biên ngày.)
-
-Observation window (2009-12-01 → 2011-06-30, trọn ngày) chứa **5,041 khách hàng**
-dùng để tính feature.
+Returns are not matched to original purchases or netted from revenue. The target
+is renamed `future_gross_sales` to explicitly mean **gross positive future sales**.
+`return_rate` remains the cancellation-invoice share, not a net-return monetary rate.
 
 ## Joins
 
 Không join thêm dataset ngoài (đúng Scope Guardrail: không merge dataset không
 liên quan chỉ để tăng feature count).
 
+Internal feature/label joins use Customer ID with one-to-one validation. Snapshot
+keys are (Customer ID, decision_date); duplicate keys are rejected. Cohort joins
+attach the first observed purchase month, not proven lifetime acquisition.
+
 ## Derived tables
 
-- `data/processed/customer_features.csv` — feature RFM + hành vi mỗi khách hàng, tính **chỉ từ** observation window
-- `data/processed/customer_labels.csv` — nhãn repeat_purchase/future_value, tính **chỉ từ** outcome window
-- `data/processed/customer_scores.csv` — deliverable cuối: feature + prediction + recommendation
+- `data/processed/customer_snapshots.csv` — all four snapshots, features/labels,
+  `decision_date`, `outcome_end_exclusive`, and `split` (train/validation/final_test).
+- `data/processed/customer_features.csv`, `customer_labels.csv` — final-test
+  snapshot feature/label exports; label is `future_gross_sales` plus `repeat_purchase`.
+- `data/processed/customer_test_predictions.csv` — baseline final-test predictions only.
+- `data/processed/customer_test_predictions_advanced.csv` — optional GBM equivalent.
+- `data/processed/customer_test_scores.csv` — final-test policy deliverable.
+- `data/processed/customer_scores.csv` — **legacy pre-remediation artifact**, never
+  consumed for corrected evaluation. See `outputs/RESULTS_STATUS.md`.
 
 ### `customer_features.csv` — mô tả cột
 
@@ -78,5 +85,31 @@ liên quan chỉ để tăng feature count).
 | return_rate | số invoice cancel / tổng invoice (kể cả cancel) | observation |
 | country | quốc gia (lấy giá trị đầu) | observation |
 
-`as_of` = ngày ngay sau `observation_end` (đảm bảo recency/tenure luôn ≥ 0,
-xem comment trong `src/02_cleaning_features.py::main`).
+`as_of` = `decision_date`; every feature uses timestamps strictly before it.
+
+### Prediction / policy columns
+
+- `rfm_score`: quartile R+F+M sum (3–12), calculated from current snapshot history.
+- `rfm_segment`: Champions >=10, Loyal >=8, At-risk >=6, otherwise Lost.
+- `predicted_repeat_purchase_proba`: selected file's classifier probability.
+- `predicted_future_value_raw`: unconstrained regressor output for diagnostics.
+- `predicted_future_value`: max(raw prediction, 0), predicting `future_gross_sales`.
+- `prediction_source`: baseline or advanced; both use the same field names in separate files.
+- `training_outcome_end_exclusive`: latest label end used to fit the final model;
+  must precede the test decision. `evaluation_design` identifies temporal snapshots.
+- `baseline_future_revenue`: nonnegative simulator input, predicted sales under
+  historical behavior (not an identified untreated counterfactual).
+- `promotion_scenario`, `effective_response_rate_reference`: scenario name and
+  assumed proportional pre-discount sales-volume growth after segment multiplier.
+- `simulated_gross_incremental_margin`: product margin change before contact cost.
+- `simulated_net_incremental_margin`: gross change minus contact cost if contacted.
+- `expected_contact_cost_if_targeted`: £0.50; only selected contacts incur it.
+- `final_recommendation`: nurture for positive net contribution and positive value;
+  retain for positive-value Champions/Loyal with nonpositive net; otherwise no-offer.
+- `target_rank`: descending positive-net-margin rank; blank when ineligible.
+- `targeted_under_budget_reference_scenario`: actual proposed-policy selection.
+
+`outputs/scenario_table.csv` has one row per scenario/policy: equal population,
+capacity, actual contacts, contact cost, before-contact margin, NET margin, NET
+margin/contact (0 by convention for zero contacts), and simulated difference
+versus the seeded non-targeted baseline. These are simulated, not observed effects.

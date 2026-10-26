@@ -104,7 +104,8 @@ def main() -> None:
 
     logger.info(
         "BƯỚC TIẾP THEO: dựa vào khoảng thời gian và profile theo tháng ở trên, "
-        "chốt observation_start/observation_end/outcome_end trong config/params.yaml."
+        "kiểm tra observation_start và validation decision dates/horizon trong config/params.yaml; "
+        "bước 02 kiểm tra đủ coverage trước khi tạo temporal snapshots."
     )
 
 

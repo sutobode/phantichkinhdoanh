@@ -1,5 +1,12 @@
 # Plan: Customer Value & Promotion Targeting for an Online Retailer
 
+> **ARCHIVED PRE-REMEDIATION WORK LOG.** All completion claims, numerical results,
+> same-snapshot "temporal holdout" descriptions and blanket-policy recommendations
+> below are historical and superseded, not current evidence. In particular, the
+> final "ready to submit" statement no longer applies. Current design/status:
+> `README.md`, `docs/model_card.md`, `docs/executive_brief.md`, and
+> `outputs/RESULTS_STATUS.md`. Corrected full-data metrics await a raw-data rerun.
+
 Nguồn yêu cầu: `phantichkinhdoanh.pdf` (HUST Business Analytics Capstone 2026)
 
 ## Cấu trúc thư mục đề xuất

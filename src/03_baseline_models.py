@@ -1,14 +1,14 @@
 """Week 2 — Baseline: RFM segmentation + naive baseline + interpretable models.
 
-Đọc customer_features.csv + customer_labels.csv (output của 02_cleaning_features.py),
-chia temporal holdout, train:
+Đọc customer_snapshots.csv; train on earlier fully observed outcomes, validate
+on a later origin, then refit on train+validation before final temporal test:
   - naive baseline (tỷ lệ chung / trung bình lịch sử)
   - RFM quantile segmentation
   - logistic regression cho repeat_purchase
-  - linear regression cho future_value
+  - linear regression cho future_gross_sales
 
-Ghi metric (kèm bootstrap CI) vào models/registry.json và
-data/processed/customer_scores.csv.
+Ghi metric vào models/temporal_registry.json và final-test-only predictions
+vào data/processed/customer_test_predictions.csv. No random customer split.
 
 Chạy: python src/03_baseline_models.py
 """
@@ -17,25 +17,29 @@ from __future__ import annotations
 import json
 import subprocess
 from datetime import datetime, timezone
+from importlib import import_module
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.base import clone
+from sklearn.calibration import calibration_curve
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
     average_precision_score,
     mean_absolute_error,
     roc_auc_score,
     root_mean_squared_error,
 )
-from sklearn.model_selection import train_test_split
-
-from utils import PROJECT_ROOT, get_logger, load_config, processed_path, set_seed
+from utils import PROJECT_ROOT, get_logger, load_config, outputs_path, processed_path, set_seed
 
 logger = get_logger("03_baseline_models")
 
 MODELS_DIR = PROJECT_ROOT / "models"
-REGISTRY_PATH = MODELS_DIR / "registry.json"
+REGISTRY_PATH = MODELS_DIR / "temporal_registry.json"
+cleaning = import_module("02_cleaning_features")
 
 
 def git_commit_hash() -> str:
@@ -48,19 +52,19 @@ def git_commit_hash() -> str:
 
 
 def load_dataset(config: dict) -> pd.DataFrame:
-    features = pd.read_csv(processed_path("customer_features.csv", config))
-    labels = pd.read_csv(processed_path("customer_labels.csv", config))
-    df = features.merge(labels, on="Customer ID", how="inner")
-    return df
+    return pd.read_csv(processed_path("customer_snapshots.csv", config))
 
 
-def rfm_segment(df: pd.DataFrame) -> pd.Series:
+def rfm_score(df: pd.DataFrame) -> pd.Series:
     """Quantile-based RFM segmentation (quartiles, dùng pd.qcut với rank để
     tránh lỗi khi nhiều giá trị trùng nhau)."""
     r_score = pd.qcut(df["recency_days"].rank(method="first"), 4, labels=[4, 3, 2, 1]).astype(int)
     f_score = pd.qcut(df["frequency"].rank(method="first"), 4, labels=[1, 2, 3, 4]).astype(int)
     m_score = pd.qcut(df["monetary"].rank(method="first"), 4, labels=[1, 2, 3, 4]).astype(int)
-    rfm_sum = r_score + f_score + m_score
+    return r_score + f_score + m_score
+
+
+def rfm_segment(df: pd.DataFrame) -> pd.Series:
 
     def label(score: int) -> str:
         if score >= 10:
@@ -71,7 +75,7 @@ def rfm_segment(df: pd.DataFrame) -> pd.Series:
             return "At-risk"
         return "Lost"
 
-    return rfm_sum.apply(label)
+    return rfm_score(df).apply(label)
 
 
 FEATURE_COLS = [
@@ -87,11 +91,13 @@ def bootstrap_ci(y_true: np.ndarray, y_score: np.ndarray, metric_fn, n_boot: int
     for _ in range(n_boot):
         idx = rng.integers(0, n, n)
         try:
-            stats.append(metric_fn(y_true[idx], y_score[idx]))
+            value = metric_fn(y_true[idx], y_score[idx])
+            if np.isfinite(value):
+                stats.append(value)
         except ValueError:
             continue
     point = metric_fn(y_true, y_score)
-    lo, hi = np.percentile(stats, [2.5, 97.5])
+    lo, hi = np.percentile(stats, [2.5, 97.5]) if stats else (float("nan"), float("nan"))
     return point, lo, hi
 
 
@@ -105,95 +111,72 @@ def register_run(entry: dict) -> None:
     logger.info("Đã ghi registry entry: %s", entry["run_id"])
 
 
+def baseline_models(config: dict):
+    # Scaling is fitted inside each training fold, never on later snapshots.
+    return (make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000, random_state=config["seed"])),
+            LinearRegression())
+
+
+def evaluate_temporal_models(snapshots, config, classifier, regressor, source="baseline"):
+    train, validation, test = cleaning.temporal_partitions(snapshots, config)
+    results = {}
+    for role, fit_df, eval_df in (
+        ("validation", train, validation),
+        ("final_test", pd.concat([train, validation], ignore_index=True), test),
+    ):
+        # This guard is also enforced by temporal_partitions; keep it adjacent
+        # to fitting so that future edits cannot accidentally fit a test label.
+        if fit_df["outcome_end_exclusive"].max() >= eval_df["decision_date"].min():
+            raise ValueError("Training labels are not yet observable")
+        clf, reg = clone(classifier), clone(regressor)
+        clf.fit(fit_df[FEATURE_COLS], fit_df["repeat_purchase"])
+        reg.fit(fit_df[FEATURE_COLS], fit_df["future_gross_sales"])
+        proba = clf.predict_proba(eval_df[FEATURE_COLS])[:, 1]
+        raw_value = reg.predict(eval_df[FEATURE_COLS])
+        value = np.clip(raw_value, 0, None)
+        metrics = {}
+        for name, target, prediction, metric in (
+            ("pr_auc", "repeat_purchase", proba, average_precision_score),
+            ("roc_auc", "repeat_purchase", proba, roc_auc_score),
+            ("mae", "future_gross_sales", value, mean_absolute_error),
+            ("rmse", "future_gross_sales", value, root_mean_squared_error),
+        ):
+            metrics[name] = bootstrap_ci(eval_df[target].to_numpy(), prediction, metric,
+                                         config["validation"]["n_bootstrap"], config["seed"])
+        naive_proba = np.full(len(eval_df), fit_df["repeat_purchase"].mean())
+        naive_value = np.full(len(eval_df), fit_df["future_gross_sales"].mean())
+        metrics.update(naive_pr_auc=average_precision_score(eval_df["repeat_purchase"], naive_proba),
+                       naive_mae=mean_absolute_error(eval_df["future_gross_sales"], naive_value),
+                       naive_rmse=root_mean_squared_error(eval_df["future_gross_sales"], naive_value),
+                       n_train=len(fit_df), n_evaluation=len(eval_df))
+        results[role] = metrics
+        logger.info("%s %s metrics: %s", source, role, metrics)
+        scores = eval_df.copy()
+        scores["rfm_score"] = rfm_score(scores)
+        scores["rfm_segment"] = rfm_segment(scores)
+        scores["predicted_repeat_purchase_proba"] = proba
+        scores["predicted_future_value_raw"] = raw_value
+        scores["predicted_future_value"] = value
+        scores["prediction_source"] = source
+        scores["evaluation_design"] = "expanding_temporal_snapshots"
+        scores["training_outcome_end_exclusive"] = fit_df["outcome_end_exclusive"].max()
+    # Only final temporal-test predictions leave this function.
+    return scores, results, clf, reg
+
+
 def main() -> None:
     config = load_config()
     set_seed(config["seed"])
-
-    df = load_dataset(config)
-    df["rfm_segment"] = rfm_segment(df)
-    logger.info("Phân phối RFM segment:\n%s", df["rfm_segment"].value_counts().to_string())
-
-    # Lưu ý về validation design: tính temporal đã được đảm bảo ở tầng nhãn —
-    # mọi feature chỉ dùng dữ liệu <= observation_end, mọi label chỉ dùng dữ liệu
-    # trong outcome window (sau observation_end). Việc chia train/test dưới đây
-    # chỉ là random split GIỮA CÁC KHÁCH HÀNG (cross-sectional), không phải random
-    # split theo thời gian trong lịch sử giao dịch — nên không vi phạm rule
-    # "no random split khi có leakage thời gian". Rolling-origin validation ở
-    # Tuần 3 (04_advanced_models.py) sẽ lặp lại toàn bộ pipeline ở nhiều
-    # observation_end khác nhau để kiểm tra model ổn định qua thời gian.
-    train_df, test_df = train_test_split(
-        df, test_size=0.2, random_state=config["seed"], stratify=df["repeat_purchase"]
-    )
-    logger.info("Train/test split (random theo khách hàng): train=%d, test=%d",
-                len(train_df), len(test_df))
-
-    X_train, X_test = train_df[FEATURE_COLS], test_df[FEATURE_COLS]
-
-    # --- Naive baseline ---
-    naive_proba = np.full(len(test_df), train_df["repeat_purchase"].mean())
-    naive_pr_auc = average_precision_score(test_df["repeat_purchase"], naive_proba)
-    naive_pred = np.full(len(test_df), train_df["future_value"].mean())
-    naive_mae = mean_absolute_error(test_df["future_value"], naive_pred)
-    naive_rmse = root_mean_squared_error(test_df["future_value"], naive_pred)
-    logger.info("Naive baseline — PR-AUC: %.3f | MAE: %.2f | RMSE: %.2f", naive_pr_auc, naive_mae, naive_rmse)
-
-    # --- Logistic regression: repeat_purchase ---
-    clf = LogisticRegression(max_iter=1000, random_state=config["seed"])
-    clf.fit(X_train, train_df["repeat_purchase"])
-    proba = clf.predict_proba(X_test)[:, 1]
-
-    pr_auc, pr_lo, pr_hi = bootstrap_ci(
-        test_df["repeat_purchase"].to_numpy(), proba, average_precision_score,
-        config["validation"]["n_bootstrap"], config["seed"],
-    )
-    roc_auc, roc_lo, roc_hi = bootstrap_ci(
-        test_df["repeat_purchase"].to_numpy(), proba, roc_auc_score,
-        config["validation"]["n_bootstrap"], config["seed"],
-    )
-    logger.info("Logistic regression — PR-AUC: %.3f [%.3f, %.3f] | ROC-AUC: %.3f [%.3f, %.3f]",
-                pr_auc, pr_lo, pr_hi, roc_auc, roc_lo, roc_hi)
-
-    # --- Linear regression: future_value ---
-    reg = LinearRegression()
-    reg.fit(X_train, train_df["future_value"])
-    pred_value = reg.predict(X_test)
-    mae, mae_lo, mae_hi = bootstrap_ci(
-        test_df["future_value"].to_numpy(), pred_value, mean_absolute_error,
-        config["validation"]["n_bootstrap"], config["seed"],
-    )
-    rmse, rmse_lo, rmse_hi = bootstrap_ci(
-        test_df["future_value"].to_numpy(), pred_value, root_mean_squared_error,
-        config["validation"]["n_bootstrap"], config["seed"],
-    )
-    logger.info("Linear regression — MAE: %.2f [%.2f, %.2f] | RMSE: %.2f [%.2f, %.2f]",
-                mae, mae_lo, mae_hi, rmse, rmse_lo, rmse_hi)
-
-    # --- Registry log ---
-    run_id = f"baseline_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    scores, metrics, _, _ = evaluate_temporal_models(load_dataset(config), config, *baseline_models(config))
     register_run({
-        "run_id": run_id,
-        "git_commit": git_commit_hash(),
-        "models": ["naive", "logistic_regression", "linear_regression"],
-        "metrics": {
-            "naive_pr_auc": naive_pr_auc,
-            "naive_mae": naive_mae,
-            "naive_rmse": naive_rmse,
-            "logreg_pr_auc": [pr_auc, pr_lo, pr_hi],
-            "logreg_roc_auc": [roc_auc, roc_lo, roc_hi],
-            "linreg_mae": [mae, mae_lo, mae_hi],
-            "linreg_rmse": [rmse, rmse_lo, rmse_hi],
-        },
+        "run_id": f"baseline_temporal_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
+        "git_commit": git_commit_hash(), "validation": config["validation"],
+        "models": ["naive", "logistic_regression", "linear_regression"], "metrics": metrics,
     })
-
-    # --- customer_scores.csv (deliverable) ---
-    full_proba = clf.predict_proba(df[FEATURE_COLS])[:, 1]
-    full_value = reg.predict(df[FEATURE_COLS])
-    scores = df[["Customer ID", "country", "rfm_segment"] + FEATURE_COLS].copy()
-    scores["predicted_repeat_purchase_proba"] = full_proba
-    scores["predicted_future_value"] = full_value
-    scores_path = processed_path("customer_scores.csv", config)
-    scores.to_csv(scores_path, index=False)
-    logger.info("Đã ghi customer_scores.csv: %s", scores_path)
+    scores.to_csv(processed_path("customer_test_predictions.csv", config), index=False)
+    fraction, predicted = calibration_curve(scores["repeat_purchase"], scores["predicted_repeat_purchase_proba"], n_bins=10)
+    pd.DataFrame({"mean_predicted_logreg": predicted, "fraction_positive_logreg": fraction}).to_csv(
+        outputs_path("temporal_calibration_logreg.csv"), index=False)
 
 
 if __name__ == "__main__":

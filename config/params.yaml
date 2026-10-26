@@ -9,16 +9,9 @@ data:
   source_url: "https://archive.ics.uci.edu/static/public/502/online+retail+ii.zip"
   download_date: "2026-10-26"
 
-# Observation window: dùng để tính feature (RFM, hành vi).
-# Outcome window: dùng để tạo nhãn (repeat_purchase, future_value).
-# Dataset thực tế trải dài 2009-12-01 -> 2011-12-09 (~25 tháng, xác nhận qua
-# outputs/01_eda.log). Chọn observation = 19 tháng đầu, outcome = ~5.3 tháng
-# cuối (đủ dài để phản ánh repeat-purchase vì tỷ lệ 180 ngày đã ổn định ở 58.1%
-# theo EDA, tránh outcome window quá ngắn làm label noise).
+# Expanding observation history; decision dates below are exclusive feature ends.
 windows:
   observation_start: "2009-12-01"
-  observation_end: "2011-06-30"
-  outcome_end: "2011-12-09"
 
 cleaning:
   drop_cancelled_invoices: true      # Invoice bắt đầu bằng "C"
@@ -27,25 +20,24 @@ cleaning:
   drop_non_positive_price: true
 
 validation:
-  method: "temporal_holdout"         # không dùng random split
-  # Mỗi cutoff dùng observation_start cố định ở trên -> cutoff, và outcome
-  # window 3 tháng ngay sau cutoff (không vượt quá outcome_end = 2011-12-09).
-  # Dùng để kiểm tra model ổn định qua nhiều thời điểm khác nhau (Tuần 3).
-  rolling_origin_cutoffs: ["2011-01-31", "2011-03-31", "2011-06-30"]
-  rolling_origin_outcome_horizon_days: 90
+  method: "expanding_temporal_snapshots"
+  train_decision_dates: ["2010-12-01", "2011-03-01"]
+  validation_decision_date: "2011-06-01"
+  # [2011-09-10, 2011-12-09): 90 complete days; exclude the partial last day.
+  final_test_decision_date: "2011-09-10"
+  outcome_horizon_days: 90
   n_bootstrap: 1000
 
 model:
   classification_target: "repeat_purchase"
-  regression_target: "future_value"
+  regression_target: "future_gross_sales"  # positive sales, NOT net returns/profit/CLV
 
 decision:
-  # Mọi giá trị trong mục này là SCENARIO ASSUMPTION — không ước lượng từ dữ
-  # liệu, vì dataset không có randomized treatment/control (Scope Guardrail
-  # của đề). response_rate ở đây là mức phản hồi THAM CHIẾU cho segment
-  # "At-risk" (persuadables, xem segment_response_multiplier bên dưới);
-  # response rate thực tế của từng khách hàng = response_rate * multiplier
-  # theo segment.
+  value_prediction_source: "baseline"  # baseline or advanced; choose before final test
+  # baseline_future_revenue = clipped predicted future gross sales under historical
+  # behavior, NOT an identified no-promotion counterfactual.
+  # response_rate means assumed proportional growth in pre-discount sales volume,
+  # NOT response probability or an estimated causal effect. Loyal multiplier = 1.
   discount_response_scenarios:
     - name: "conservative"
       discount_pct: 0.05
@@ -58,27 +50,19 @@ decision:
       response_rate: 0.35
   reference_scenario: "moderate"   # scenario dùng làm baseline cho recommendation/tornado chart
 
-  # Biên lợi nhuận gộp giả định (không có trong dataset) — tham khảo mức phổ
-  # biến ngành e-commerce bán lẻ (30-45%). Dùng để quy đổi revenue -> margin.
+  # gross_margin_rate g: baseline COGS = v*(1-g). Unit product costs stay fixed.
+  # discount_rate d = discount_pct; growth r = response_rate * segment multiplier.
+  # gross incremental margin = v*((1+r)*(g-d)-g); net = gross - contact cost.
   gross_margin_pct: 0.40
 
-  # Hệ số điều chỉnh response_rate theo segment, dựa trên lý thuyết uplift
-  # modeling (Sure Things / Persuadables / Lost Causes / Sleeping Dogs):
-  #   - Champions: "sure things" — nhiều khả năng mua lại DÙ KHÔNG có khuyến
-  #     mãi -> giảm giá chủ yếu là mất margin vô ích -> multiplier THẤP.
-  #   - Loyal/At-risk: "persuadables" — nhóm dễ bị tác động bởi khuyến mãi
-  #     nhất -> multiplier CAO NHẤT, đây là nhóm nên ưu tiên target.
-  #   - Lost: "lost causes" — khó kéo lại dù có khuyến mãi -> multiplier THẤP.
-  # Đây là GIẢ ĐỊNH kinh doanh cần A/B test thật để xác nhận (xem
-  # docs/production_roadmap.md — "Path to causal validation").
+  # Scenario assumptions only; RFM does not identify treatment-response types.
   segment_response_multiplier:
     Champions: 0.5
     Loyal: 1.0
     At-risk: 1.3
     Lost: 0.4
 
-  # Budget-constrained optimization (Tuần 4 stretch): chi phí liên hệ 1 khách
-  # hàng (email/SMS) và tổng ngân sách khả dụng -> số khách hàng tối đa có
-  # thể target = budget_total / contact_cost_per_customer.
+  # campaign_budget = budget_total: CONTACT budget only. Discounts enter profit.
+  # All three policies use the same actual N <= floor(budget/contact cost).
   contact_cost_per_customer: 0.50
   budget_total: 750.0

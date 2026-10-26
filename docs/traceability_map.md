@@ -1,99 +1,78 @@
 # Traceability Map
 
-Mỗi khuyến nghị chính trong `executive_brief.md` trace ngược về data →
-assumption → analysis → validation cụ thể, đáp ứng yêu cầu "final
-recommendation must be traceable from data, assumptions, analysis, and
-validation" của đề.
+This supersedes the former mixed-sample/blanket-policy numerical recommendations.
+Corrected UCI results are pending raw-data execution; old artifacts are identified
+in `outputs/RESULTS_STATUS.md`. No synthetic test metric is a capstone result.
 
----
+## Data → snapshots → validation
 
-## Khuyến nghị 1: "Tặng khuyến mãi tràn lan có thể lỗ margin (-£63,000 ở kịch
-bản aggressive)"
+- **Source:** UCI Online Retail II workbook; `docs/data_dictionary.md` records URL,
+  access date, cleaning, duplicate-retention policy and gross-positive-sales semantics.
+- **Implementation:** `src/02_cleaning_features.py::audit_duplicates`,
+  `build_temporal_snapshots`, `snapshot_schedule`, `temporal_partitions`.
+- **Assumptions/dates:** expanding history from 2009-12-01; train decisions
+  2010-12-01/2011-03-01, validation 2011-06-01, final test 2011-09-10; horizon 90 days.
+- **Validation:** raw coverage and schedule checks reject incomplete outcome windows
+  or training labels finishing at/after the later decision. Tests mutate final
+  outcomes and verify final predictions do not change.
+- **Outputs:** `outputs/data_quality.csv`, `outputs/temporal_schedule.csv`,
+  `data/processed/customer_snapshots.csv`.
 
-- **Data**: `data/processed/customer_scores.csv` cột `predicted_future_value_gbm`
-  (5,041 khách hàng).
-- **Analysis**: `src/05_decision_scenario.py::build_scenario_table()`, công
-  thức `incremental_margin_i = v_i * gross_margin_pct * [(1+eff_r)(1-d) - 1]`
-  áp dụng cho TẤT CẢ khách hàng (blanket policy).
-- **Assumption**: `config/params.yaml::decision` — `gross_margin_pct=0.40`,
-  `discount_response_scenarios[aggressive]={d:0.20, r:0.35}`,
-  `segment_response_multiplier`.
-- **Validation**: không áp dụng trực tiếp (đây là phép tính kế toán dựa trên
-  v_i đã được validate — xem Khuyến nghị 3), nhưng công thức margin được unit
-  test (`tests/test_decision_scenario.py::test_incremental_margin_*`, 2 test).
-- **Output**: `outputs/scenario_table.csv`, hàng `aggressive`, cột
-  `total_margin_non_targeted_blanket = -63,005`.
+## Prediction → final-test policy inputs
 
-## Khuyến nghị 2: "Targeting đúng mang lại +£28,977 ở cùng kịch bản"
+- **Implementation:** `src/03_baseline_models.py::evaluate_temporal_models` fits
+  earlier train snapshots for validation, then train+validation for final test.
+- **Baseline:** train-only StandardScaler + LogisticRegression; LinearRegression;
+  RFM and naive comparators. No random customer split.
+- **Optional:** `src/04_advanced_models.py` uses the same temporal evaluator for GBM,
+  preserving calibration, SHAP and subgroup diagnostics.
+- **Outputs:** `models/temporal_registry.json`,
+  `data/processed/customer_test_predictions.csv`, optional
+  `data/processed/customer_test_predictions_advanced.csv`.
+- **Validation:** `src/utils.py::validate_final_test_predictions` rejects legacy,
+  mixed-snapshot and deployment rows. Model source is fixed in configuration,
+  not selected by final-test accuracy. Clipped predictions are evaluated and used
+  in business logic; unconstrained predictions remain diagnostic fields.
 
-- **Data**: như trên.
-- **Analysis**: cùng hàm `build_scenario_table()`, cột
-  `total_margin_targeted_positive_only` = sum(incremental_margin_i) với
-  incremental_margin_i > 0.
-- **Assumption**: như trên + quy tắc "chỉ target nếu margin > 0" (không có
-  thêm giả định mới).
-- **Validation**: `tests/test_decision_scenario.py::test_budget_constrained_selection_*`
-  xác nhận logic lọc margin>0 đúng.
-- **Output**: `outputs/scenario_table.csv`, hàng `aggressive`, cột
-  `total_margin_targeted_positive_only = 28,976.69`.
+## Economics → no campaign under the current assumptions
 
-## Khuyến nghị 3: "Dùng model GBM (PR-AUC 0.82) để dự báo predicted_future_value/
-proba — nền tảng cho mọi tính toán margin ở trên"
+- **Inputs:** final-test clipped future gross sales under historical behavior,
+  not untreated revenue; `config/params.yaml::decision` contains all assumptions.
+- **Implementation:** `src/05_decision_scenario.py::incremental_margin`:
+  `v*((1+r)*(g-d)-g) - contact_cost`. Underlying unit COGS is unchanged.
+- **Assumptions:** g=0.40; d/r pairs 0.05/0.10, 0.10/0.20, 0.20/0.35;
+  segment multipliers 0.5/1.0/1.3/0.4; contact cost £0.50.
+- **Conclusion:** the maximum pre-contact coefficient in each scenario is negative
+  (-0.0045, -0.022, -0.109). Thus zero selected contacts, £0 contact cost and £0
+  simulated NET campaign change follow for any nonnegative predictions. This is
+  algebra under assumptions, not an observed UCI campaign result.
+- **Tests:** known promoted-revenue/COGS accounting example, contact-cost deduction,
+  negative forecast clipping and absence of sign-reversal recommendations.
 
-- **Data**: `data/processed/customer_features.csv` (features từ observation
-  window 2009-12-01→2011-06-30) + `customer_labels.csv` (labels từ outcome
-  window 2011-07-01→2011-12-09).
-- **Analysis**: `src/04_advanced_models.py` — GradientBoostingClassifier/
-  Regressor, train trên 80% khách hàng (random theo customer), eval trên 20%
-  còn lại.
-- **Assumption**: validation design = temporal holdout ở tầng nhãn + random
-  split cross-sectional cho train/test (xem comment trong
-  `src/03_baseline_models.py`, lý do tại sao random split ở đây KHÔNG gây
-  leakage).
-- **Validation**:
-  - Bootstrap CI: PR-AUC 0.820 [0.787, 0.851] (1000 lần resample).
-  - Rolling-origin validation: 3 cutoff khác nhau, std=0.035 (ổn định).
-  - 6 unit test chống leakage trong `tests/test_features.py`.
-- **Output**: `models/gbm_classifier_v1.joblib`, `models/gbm_regressor_v1.joblib`,
-  `models/registry.json` (run_id `advanced_gbm_v1`).
+## Fair policy comparison → decisions/dashboard
 
-## Khuyến nghị 4: "Champions → retain (không discount), Lost → no-offer,
-At-risk/Loyal → nurture"
+- **Implementation:** `policy_selections` and `build_scenario_table` compare seeded
+  random, RFM score/monetary ranking, and descending positive NET contributions.
+- **Constraint:** same actual N <= floor(£750/£0.50)=1,500 for every policy within a
+  scenario. Random selection is seeded and customer order canonicalized.
+- **Outputs:** `outputs/scenario_table.csv` (three scenarios × three policies),
+  `data/processed/customer_test_scores.csv` (decision time/source/scenario,
+  before-contact and NET contribution, cost, rank, action, selection).
+- **Actions:** positive net and value → nurture; positive-value Champions/Loyal
+  with nonpositive net → retain; otherwise no-offer. No intervention effect is
+  inferred from these labels.
+- **Dashboard:** `dashboard/app.py` accepts final-test scores only; shows equal-N
+  NET comparisons. Optional API in `src/serve.py` is explicitly deployment/demo,
+  has no campaign-wide budget allocation, and never supplies evaluation metrics.
 
-- **Data**: `customer_scores.csv` cột `rfm_segment` (quantile-based trên
-  recency/frequency/monetary, `src/03_baseline_models.py::rfm_segment()`) +
-  `incremental_margin_reference_scenario`.
-- **Analysis**: `src/05_decision_scenario.py::assign_recommendation()` — quy
-  tắc: margin>0 → nurture; margin≤0 & segment∈{Champions,Loyal} & value>0 →
-  retain; còn lại → no-offer.
-- **Assumption**: `segment_response_multiplier` (Champions=0.5 "sure thing",
-  At-risk=1.3 "persuadable", Lost=0.4 "lost cause") — dựa trên lý thuyết
-  uplift modeling, KHÔNG ước lượng từ dữ liệu thật (ghi rõ trong
-  `config/params.yaml` và `docs/model_card.md`).
-- **Validation**: `tests/test_decision_scenario.py::test_assign_recommendation_logic`.
-- **Output**: `customer_scores.csv` cột `final_recommendation`; phân phối xác
-  nhận trong `docs/model_card.md` (Champions 1459/1460 → retain, Lost
-  1506/1508 → no-offer).
+## Sensitivity and verification
 
-## Khuyến nghị 5: "Chính sách moderate, ngân sách £750 → nhắm 1,500 khách
-hàng, +£22,787"
-
-- **Data**: `incremental_margin_reference_scenario` (reference = "moderate").
-- **Analysis**: `src/05_decision_scenario.py::budget_constrained_selection()`
-  — greedy top-N theo margin giảm dần, N = floor(budget/cost) = floor(750/0.5)
-  = 1500. Tối ưu CHÍNH XÁC (không phải xấp xỉ) vì cost đồng nhất mỗi khách
-  hàng (0/1 knapsack với cost bằng nhau → greedy-by-value là lời giải tối
-  ưu).
-- **Assumption**: `contact_cost_per_customer=0.50`, `budget_total=750.0`.
-- **Validation**: `tests/test_decision_scenario.py::test_budget_constrained_selection_respects_cap_and_positivity`.
-- **Output**: `outputs/scenario_table.csv` hàng `moderate`, cột
-  `total_margin_budget_constrained=22,787`, `n_customers_budget_constrained=1500`.
-
-## Khuyến nghị 6: "Kết quả nhạy nhất với discount_pct và response_rate"
-
-- **Data/Analysis**: `src/05_decision_scenario.py::tornado_sensitivity()` —
-  vary từng tham số quanh base case (moderate scenario), đo swing lên
-  `total_margin_targeted_positive_only`.
-- **Output**: `outputs/tornado_sensitivity.csv` — `response_rate` swing=143,516
-  (lớn nhất), `discount_pct` swing=104,602 (thứ 2), `at_risk_response_multiplier`
-  swing=13,750, `gross_margin_pct` swing=13,017.
+- `tornado_sensitivity` varies response 0.10–0.35, discount 0.05–0.20, gross margin
+  0.30–0.50, At-risk multiplier 0.91–1.69 around moderate; recomputes selected
+  budget-constrained NET margin. Table schema is retained.
+- Outputs: `outputs/tornado_sensitivity.csv`, `outputs/figures/tornado_sensitivity.png`.
+- `tornado_bar_bounds` guarantees nonnegative widths for reversed endpoints.
+- `src/06_final_qa.py`: baseline 02→03→05 (04 only for advanced source), tests,
+  temporal provenance, nonnegative values and recomputed scenario consistency.
+- Relevant tests: `tests/test_features.py`, `tests/test_temporal_evaluation.py`,
+  `tests/test_decision_scenario.py`, `tests/test_pipeline_idempotency.py`.

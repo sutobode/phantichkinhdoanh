@@ -1,76 +1,72 @@
 # Executive Brief — Customer Retention & Promotion Targeting
 
-**Để:** Marketing / CRM decision-maker | **Dataset:** 2 năm giao dịch, 5,041 khách hàng active
+**To:** Marketing / CRM decision-maker | **Data:** UCI Online Retail II historical transactions
 
-## Câu hỏi kinh doanh
+## Decision
 
-Chúng ta nên tặng khuyến mãi cho ai để **tăng lợi nhuận kỳ vọng**, thay vì
-giảm giá tràn lan và làm mất margin ở những khách hàng đã sẵn sàng mua?
+Prioritize customers only when a promotion has positive **simulated NET margin**
+after discount-related product costs and contact expense. A no-campaign decision
+is permitted; an available budget does not have to be spent.
 
-## Phát hiện chính
+## Current recommendation
 
-Gửi khuyến mãi **cho TẤT CẢ khách hàng** (chính sách hiện tại/mặc định ở
-nhiều nơi) có thể **phá hủy lợi nhuận** nếu mức giảm giá lớn: mô phỏng cho
-thấy ở kịch bản giảm giá 20%, chính sách "tặng cho tất cả" lỗ **-£63,000**
-margin kỳ vọng — vì nhiều khách hàng (nhóm "Champions") vốn đã mua đều đặn dù
-không có khuyến mãi, nên giảm giá cho họ chỉ làm mất margin, không tạo thêm
-doanh thu.
+**Do not launch any of the three currently assumed discount campaigns.** Keeping
+unit product costs fixed changes the earlier economic conclusion. Even for the
+highest assumed-growth segment (At-risk), before-contact incremental margin is:
 
-**Nhắm mục tiêu đúng khách hàng** đảo ngược hoàn toàn kết quả: cùng kịch bản
-giảm giá 20%, chỉ gửi khuyến mãi cho nhóm khách hàng phù hợp mang lại
-**+£28,977** margin kỳ vọng — chênh lệch **~£92,000** so với tặng tràn lan.
+| Scenario | Discount | Base sales-volume growth | Best coefficient × predicted revenue |
+|---|---:|---:|---:|
+| Conservative | 5% | 10% | -0.0045 |
+| Moderate | 10% | 20% | -0.0220 |
+| Aggressive | 20% | 35% | -0.1090 |
 
-## Khuyến nghị
+Subtracting £0.50/contact makes every customer contribution negative when predicted
+revenue is nonnegative. Each proposed policy therefore contacts **0 customers**, costs
+**£0** and produces **£0 simulated NET change**. Equal-contact random and RFM
+comparators also contact zero; their differences are zero. These are consequences
+of the stated assumptions, not observed campaign results.
 
-Phân loại khách hàng thành 3 nhóm hành động, dựa trên mô hình dự báo (Gradient
-Boosting, độ chính xác PR-AUC 0.82, đã kiểm định ổn định qua nhiều mốc thời
-gian):
+The former positive-margin recommendations and customer counts are **superseded**.
+They used different economics and mixed in-sample predictions. Corrected UCI
+predictive metrics/population counts await a raw-data rerun; no model accuracy or
+positive campaign return is claimed here.
 
-| Nhóm | Số khách hàng | Hành động | Lý do |
-|---|---|---|---|
-| **Nurture** (At-risk, Loyal) | 2,073 | Gửi khuyến mãi | Nhóm "dễ bị tác động" — khuyến mãi tạo doanh thu tăng thêm đủ bù chi phí giảm giá |
-| **Retain** (Champions) | 1,459 | Chăm sóc KHÔNG dùng khuyến mãi (loyalty, ưu tiên dịch vụ) | Đã mua đều đặn, giảm giá chỉ lãng phí margin |
-| **No-offer** (Lost, giá trị thấp) | 1,509 | Không đầu tư | Khả năng phản hồi thấp, chi phí không đáng |
+## Policy and target groups
 
-**Chính sách đề xuất (kịch bản "moderate": giảm giá 10%, ngân sách liên hệ
-£750):** nhắm mục tiêu tối đa **1,500 khách hàng** nhóm Nurture có margin kỳ
-vọng cao nhất → **+£22,787** margin kỳ vọng (so với +£8,830 nếu tặng tràn
-lan cùng mức giảm giá).
+- **Nurture:** positive predicted revenue AND positive NET scenario margin;
+  rank descending and select within the contact budget. None qualify under the
+  three current assumptions; sensitivity can explore genuinely different assumptions.
+- **Retain:** positive-value Champions/Loyal with nonpositive promotional margin;
+  consider non-discount relationship/service attention. Its benefit is not estimated.
+- **No-offer:** remaining customers; no discounted campaign recommended.
 
-## Giả định quan trọng (cần lưu ý)
+Contact budget is **£750**, at **£0.50/customer**, maximum **1,500**. Comparisons use
+the same evaluation population, actual contact count, cost and assumptions:
+seeded random versus RFM ranking versus positive-NET-margin ranking.
 
-- Các con số margin là **ước lượng theo kịch bản**, dựa trên giả định về tỷ
-  lệ phản hồi (response rate) và biên lợi nhuận — **không phải** kết quả đã
-  được kiểm chứng bằng thử nghiệm thực tế (dataset hiện tại không có nhóm đối
-  chứng/A-B test).
-- Tỷ lệ phản hồi giả định **khác nhau theo nhóm khách hàng**: nhóm "At-risk/
-  Loyal" được giả định phản hồi tốt hơn khuyến mãi (dựa trên lý thuyết hành
-  vi khách hàng), nhóm "Champions" được giả định ít bị tác động vì đã trung
-  thành sẵn.
-- Đã kiểm tra độ nhạy (sensitivity): kết quả nhạy nhất với **mức giảm giá**
-  và **tỷ lệ phản hồi thực tế** — đây là 2 yếu tố nên verify sớm nhất bằng
-  thử nghiệm thực tế.
-- Model dự báo giá trị khách hàng **kém chính xác hơn ở nhóm khách hàng chi
-  tiêu cực cao** (vd top 1% "whale customer") — nên review thủ công trước
-  khi áp dụng khuyến nghị cho nhóm này, không nên tự động hóa hoàn toàn.
+## Evidence and assumptions
 
-## Đề xuất triển khai
+- The required baseline is logistic repeat-purchase prediction plus linear
+  future-gross-sales prediction and RFM. GBM remains an optional comparison.
+- Features are known before each decision. Train origins: 2010-12-01 and 2011-03-01;
+  validation: 2011-06-01; final test: 2011-09-10. Each outcome lasts 90 days.
+  Models are refitted only on fully observed earlier labels before final prediction.
+- Main business outputs use final temporal-test predictions only, not demo scores.
+- Value means predicted **gross positive sales under historical behavior**, clipped
+  at zero; not net returns, lifetime CLV or an identified no-promotion counterfactual.
+- Gross margin is assumed 40%. Unit product costs stay unchanged with discount.
+  NET contribution is `v*((1+r)*(g-d)-g) - 0.50`.
+- `response_rate` means assumed proportional pre-discount sales-volume growth,
+  not conversion probability. Segment multipliers are Champions 0.5, Loyal 1.0,
+  At-risk 1.3, Lost 0.4; they are unmeasured business assumptions.
+- No randomized promotion treatment/control exists. This is scenario analysis,
+  **not causal uplift, true promotion ROI or actual incremental profit**.
 
-1. **Tháng 1-2**: Chạy pilot A/B test thật (có nhóm đối chứng) trên nhóm
-   "Nurture" để đo tỷ lệ phản hồi thực tế, thay giả định bằng số liệu đo
-   được.
-2. **Vận hành hàng tháng**: cập nhật `customer_scores.csv` mỗi tháng với dữ
-   liệu giao dịch mới, refresh danh sách nhắm mục tiêu.
-3. **KPI theo dõi sau triển khai**: tỷ lệ phản hồi thực tế theo segment, chi
-   phí khuyến mãi/doanh thu tăng thêm, margin thực tế so với dự báo.
-4. **Ngưỡng cảnh báo**: nếu response rate thực tế thấp hơn >30% so với giả
-   định, dừng và review lại model/giả định (không tiếp tục chạy chính sách
-   dựa trên giả định sai).
+## Next decision gate and risks
 
-## Rủi ro chính
-
-Nếu giả định response rate sai (vd Champions phản hồi tốt hơn dự kiến), chi
-phí cơ hội là bỏ lỡ margin từ nhóm đó — nhưng rủi ro NGƯỢC LẠI (tặng tràn lan
-và lỗ margin như minh họa ở trên) lớn hơn nhiều. Khuyến nghị bắt đầu thận
-trọng (kịch bản "conservative" hoặc "moderate") và mở rộng dần sau khi có dữ
-liệu A/B test thật.
+Complete the raw-data rerun before using predictive metrics. Review the four-axis
+sensitivity table and test any revised promotion assumption through a randomized
+pilot before rollout. Monitor realized product margin, returns and contact costs.
+Historical sales, retained duplicates, outlier predictions and time drift limit
+transfer to current customers. Do not replace assumptions solely to obtain a
+profitable recommendation.

@@ -18,7 +18,7 @@ import streamlit as st
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from utils import load_config, processed_path, outputs_path  # noqa: E402
+from utils import load_config, processed_path, outputs_path, validate_final_test_predictions  # noqa: E402
 
 st.set_page_config(page_title="Customer Value & Promotion Targeting", layout="wide")
 
@@ -26,15 +26,27 @@ st.set_page_config(page_title="Customer Value & Promotion Targeting", layout="wi
 @st.cache_data
 def load_data():
     config = load_config(PROJECT_ROOT / "config" / "params.yaml")
-    scores = pd.read_csv(processed_path("customer_scores.csv", config))
+    scores = pd.read_csv(processed_path("customer_test_scores.csv", config))
+    validate_final_test_predictions(scores, config)
     scenario_table = pd.read_csv(outputs_path("scenario_table.csv"))
+    if (not scores["prediction_source"].eq(config["decision"]["value_prediction_source"]).all()
+            or "policy" not in scenario_table
+            or not scenario_table["prediction_source"].eq(config["decision"]["value_prediction_source"]).all()
+            or not scenario_table["decision_date"].eq(config["validation"]["final_test_decision_date"]).all()):
+        raise ValueError("Regenerate final temporal-test policy outputs for the current configuration")
     cohort = pd.read_csv(outputs_path("cohort_retention.csv"))
     return config, scores, scenario_table, cohort
 
 
-config, scores, scenario_table, cohort = load_data()
+try:
+    config, scores, scenario_table, cohort = load_data()
+except (FileNotFoundError, ValueError, KeyError) as exc:
+    st.error(f"Final temporal-test results unavailable: {exc}. Run steps 02 → 03 → 05 first.")
+    st.stop()
 
 st.title("Customer Value & Promotion Targeting — Online Retailer")
+st.caption(f"Evaluation only: final temporal test at {config['validation']['final_test_decision_date']}; "
+           f"model source: {config['decision']['value_prediction_source']}. Not a current deployment list.")
 st.caption(
     "Business question: khách hàng nào nên được ưu tiên retention/promotion để "
     "tăng expected future margin mà không over-discount? "
@@ -64,38 +76,29 @@ st.sidebar.markdown(f"**{len(filtered)} / {len(scores)}** khách hàng sau filte
 # --- KPI row (3-5 KPI quyết định) ---
 col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric("Số khách hàng", f"{len(filtered):,}")
-col2.metric("Tổng expected future value", f"£{filtered['predicted_future_value_gbm'].sum():,.0f}")
-col3.metric("Avg repeat-purchase proba", f"{filtered['predicted_repeat_purchase_proba_gbm'].mean():.1%}")
+col2.metric("Predicted future gross sales", f"£{filtered['baseline_future_revenue'].sum():,.0f}")
+col3.metric("Avg repeat-purchase proba", f"{filtered['predicted_repeat_purchase_proba'].mean():.1%}")
 col4.metric(
-    "Expected incremental margin (nurture only)",
-    f"£{filtered.loc[filtered['final_recommendation']=='nurture', 'incremental_margin_reference_scenario'].sum():,.0f}",
+    "Simulated NET margin (budget-selected)",
+    f"£{filtered.loc[filtered['targeted_under_budget_reference_scenario'], 'simulated_net_incremental_margin'].sum():,.0f}",
 )
-retention_risk = (filtered["predicted_repeat_purchase_proba_gbm"] < 0.3).mean() if len(filtered) else 0
+retention_risk = (filtered["predicted_repeat_purchase_proba"] < 0.3).mean() if len(filtered) else 0
 col5.metric("Retention risk (% proba<30%)", f"{retention_risk:.1%}")
 
 st.divider()
 
 # --- Scenario comparison chart ---
 st.subheader("So sánh policy theo scenario (toàn bộ customer base, không áp filter)")
-st.caption("blanket = gửi khuyến mãi cho TẤT CẢ khách hàng (non-targeted). "
-           "targeted = chỉ gửi cho khách hàng có incremental margin dương. "
-           "budget-constrained = targeted nhưng giới hạn theo ngân sách liên hệ.")
-scenario_long = scenario_table.melt(
-    id_vars=["scenario", "discount_pct", "response_rate_reference"],
-    value_vars=["total_margin_non_targeted_blanket", "total_margin_targeted_positive_only", "total_margin_budget_constrained"],
-    var_name="policy", value_name="total_margin",
-)
-scenario_long["policy"] = scenario_long["policy"].map({
-    "total_margin_non_targeted_blanket": "Blanket (non-targeted)",
-    "total_margin_targeted_positive_only": "Targeted (positive-margin)",
-    "total_margin_budget_constrained": "Budget-constrained",
-})
+st.caption("Non-targeted = seeded random; RFM = score/monetary ranking; proposed = positive net margin. "
+           "Same population, actual contact count, capacity and contact cost in each scenario. "
+           "Zero eligible customers means no campaign for all three policies.")
 fig_scenario = px.bar(
-    scenario_long, x="scenario", y="total_margin", color="policy", barmode="group",
-    labels={"total_margin": "Expected incremental margin (£)", "scenario": "Scenario"},
-    title="Expected incremental margin theo policy & scenario",
+    scenario_table, x="scenario", y="simulated_net_incremental_margin", color="policy", barmode="group",
+    labels={"simulated_net_incremental_margin": "Simulated NET margin (£)", "scenario": "Scenario"},
+    title="Equal-capacity policy comparison — final temporal test",
 )
 st.plotly_chart(fig_scenario, use_container_width=True)
+st.dataframe(scenario_table, use_container_width=True)
 
 col_a, col_b = st.columns(2)
 
@@ -117,6 +120,7 @@ st.divider()
 
 # --- Cohort retention heatmap ---
 st.subheader("Cohort retention (theo tháng acquisition)")
+st.caption("Full final-test observation population; sidebar filters do not apply.")
 cohort_pivot = cohort.pivot(index="cohort_month", columns="months_since_acquisition", values="retention_rate")
 fig_cohort = px.imshow(
     cohort_pivot, color_continuous_scale="Blues", aspect="auto",
@@ -133,12 +137,12 @@ st.caption(f"Ngân sách liên hệ: £{config['decision']['budget_total']:.0f} 
            f"= tối đa {int(config['decision']['budget_total'] / config['decision']['contact_cost_per_customer'])} khách hàng")
 
 priority_list = filtered[filtered["targeted_under_budget_reference_scenario"]].sort_values(
-    "incremental_margin_reference_scenario", ascending=False
+    "simulated_net_incremental_margin", ascending=False
 )
 display_cols = [
-    "Customer ID", "country", "rfm_segment", "final_recommendation",
-    "predicted_future_value_gbm", "predicted_repeat_purchase_proba_gbm",
-    "incremental_margin_reference_scenario",
+    "Customer ID", "decision_date", "country", "rfm_segment", "final_recommendation",
+    "baseline_future_revenue", "predicted_repeat_purchase_proba", "promotion_scenario",
+    "simulated_net_incremental_margin", "expected_contact_cost_if_targeted", "target_rank",
 ]
 st.dataframe(priority_list[display_cols], use_container_width=True, height=400)
 st.download_button(

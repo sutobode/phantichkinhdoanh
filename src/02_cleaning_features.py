@@ -1,7 +1,6 @@
 """Week 2 — Cleaning, RFM, cohort view, feature engineering, labels.
 
-Đọc raw Excel, tính RFM + cohort view + feature hành vi trong observation
-window, tạo nhãn (repeat_purchase, future_value) từ outcome window.
+Đọc raw Excel; expanding snapshots with 90-day repeat/gross-sales labels.
 
 QUAN TRỌNG (chống leakage): thứ tự xử lý là **split theo thời gian TRƯỚC,
 clean (loại cancellation/qty<=0/price<=0) SAU, riêng biệt theo từng window**.
@@ -10,10 +9,10 @@ Nếu clean toàn cục rồi mới split, feature "tỷ lệ return" sẽ khôn
 và outcome window khi thêm feature mới sau này. Mọi hàm compute_* chỉ nhận
 input đã được giới hạn trong đúng 1 window.
 
-Yêu cầu: config/params.yaml phải đã có observation_start/observation_end/
-outcome_end (chốt sau khi chạy 01_eda.py).
+Decision dates are configured and checked against actual raw coverage.
 
 Output:
+  - data/processed/customer_snapshots.csv (train/validation/final_test)
   - data/processed/customer_features.csv
   - data/processed/customer_labels.csv
   - outputs/cohort_retention.csv
@@ -36,6 +35,14 @@ def load_raw(config: dict) -> pd.DataFrame:
     sheets = pd.read_excel(path, sheet_name=None)
     df = pd.concat(sheets.values(), ignore_index=True)
     return df
+
+
+def audit_duplicates(raw: pd.DataFrame) -> pd.DataFrame:
+    """Count exact repeats beyond the first occurrence; retain all rows."""
+    count = int(raw.duplicated().sum())
+    logger.info("Exact duplicate rows beyond first: %d; policy=retain", count)
+    return pd.DataFrame([{"raw_rows": len(raw), "exact_duplicate_rows": count,
+                          "duplicate_policy": "retain"}])
 
 
 def filter_valid_customers(df: pd.DataFrame, config: dict) -> pd.DataFrame:
@@ -159,43 +166,104 @@ def compute_labels(outcome_clean: pd.DataFrame, obs_customers: pd.Index) -> pd.D
     riêng, hoàn toàn không overlap với dữ liệu dùng để tính feature."""
     future_value = outcome_clean.groupby("Customer ID")["Revenue"].sum()
     labels = pd.DataFrame(index=obs_customers)
-    labels["future_value"] = future_value.reindex(obs_customers).fillna(0.0)
-    labels["repeat_purchase"] = (labels["future_value"] > 0).astype(int)
+    labels["future_gross_sales"] = future_value.reindex(obs_customers).fillna(0.0)
+    labels["repeat_purchase"] = (labels["future_gross_sales"] > 0).astype(int)
     return labels.reset_index().rename(columns={"index": "Customer ID"})
+
+
+def snapshot_schedule(config: dict) -> pd.DataFrame:
+    """Half-open outcome intervals; reject label overlap with the next evaluation."""
+    v = config["validation"]
+    dates = v["train_decision_dates"] + [v["validation_decision_date"], v["final_test_decision_date"]]
+    roles = ["train"] * len(v["train_decision_dates"]) + ["validation", "final_test"]
+    decisions = pd.to_datetime(dates)
+    if (not v["train_decision_dates"] or v["outcome_horizon_days"] <= 0
+            or decisions.has_duplicates or not decisions.is_monotonic_increasing
+            or decisions[0] <= pd.Timestamp(config["windows"]["observation_start"])):
+        raise ValueError("Invalid temporal snapshot schedule")
+    schedule = pd.DataFrame({"decision_date": decisions, "split": roles})
+    schedule["outcome_end_exclusive"] = decisions + pd.Timedelta(days=v["outcome_horizon_days"])
+    for role in ("validation", "final_test"):
+        evaluation_date = schedule.loc[schedule["split"] == role, "decision_date"].iloc[0]
+        earlier = schedule[schedule["decision_date"] < evaluation_date]
+        if (earlier["outcome_end_exclusive"] >= evaluation_date).any():
+            raise ValueError("Training outcomes must finish before the evaluation decision time")
+    return schedule
+
+
+def build_snapshot(raw_filtered: pd.DataFrame, config: dict, decision_date, split: str) -> pd.DataFrame:
+    decision_date = pd.Timestamp(decision_date)
+    end = decision_date + pd.Timedelta(days=config["validation"]["outcome_horizon_days"])
+    window_config = {"windows": {
+        "observation_start": config["windows"]["observation_start"],
+        "observation_end": decision_date - pd.Timedelta(days=1),
+        "outcome_end": end - pd.Timedelta(days=1),
+    }}
+    obs_raw, outcome_raw = split_windows(raw_filtered, window_config)
+    obs_clean = drop_invalid_rows(obs_raw, config, f"{split}/observation")
+    outcome_clean = drop_invalid_rows(outcome_raw, config, f"{split}/outcome")
+    if obs_clean.empty:
+        raise ValueError(f"Empty observation window at {decision_date}")
+    features = compute_rfm_features(obs_clean, compute_return_rate(obs_raw), decision_date)
+    labels = compute_labels(outcome_clean, features["Customer ID"])
+    snapshot = features.merge(labels, on="Customer ID", validate="one_to_one")
+    snapshot["decision_date"] = decision_date
+    snapshot["outcome_end_exclusive"] = end
+    snapshot["split"] = split
+    return snapshot
+
+
+def build_temporal_snapshots(raw: pd.DataFrame, config: dict) -> pd.DataFrame:
+    schedule = snapshot_schedule(config)
+    # Last recorded calendar day may be partial: require coverage up to the
+    # exclusive midnight ending every outcome window, without inventing labels.
+    if (raw.empty or raw["InvoiceDate"].min().normalize() > pd.Timestamp(config["windows"]["observation_start"])
+            or schedule["outcome_end_exclusive"].max() > raw["InvoiceDate"].max().normalize()):
+        raise ValueError("Raw data does not cover the complete configured observation/outcome windows")
+    filtered = filter_valid_customers(raw, config)
+    return pd.concat([
+        build_snapshot(filtered, config, row.decision_date, row.split)
+        for row in schedule.itertuples(index=False)
+    ], ignore_index=True)
+
+
+def temporal_partitions(snapshots: pd.DataFrame, config: dict):
+    schedule = snapshot_schedule(config)
+    df = snapshots.copy()
+    for col in ("decision_date", "outcome_end_exclusive"):
+        df[col] = pd.to_datetime(df[col])
+    if df.duplicated(["Customer ID", "decision_date"]).any():
+        raise ValueError("Duplicate customer snapshots")
+    actual = df[["decision_date", "split", "outcome_end_exclusive"]].drop_duplicates().sort_values("decision_date")
+    if not actual.reset_index(drop=True).equals(schedule):
+        raise ValueError("Snapshot dates/labels do not match the configured temporal schedule")
+    return tuple(df[df["split"] == role].copy() for role in ("train", "validation", "final_test"))
 
 
 def main() -> None:
     config = load_config()
     raw = load_raw(config)
 
+    audit_duplicates(raw).to_csv(outputs_path("data_quality.csv"), index=False)
+
     from data_validation import validate_raw
     raw = validate_raw(raw)
 
-    raw = filter_valid_customers(raw, config)
-
-    obs_raw, outcome_raw = split_windows(raw, config)
-    logger.info("Observation window raw: %d dòng | Outcome window raw: %d dòng",
-                len(obs_raw), len(outcome_raw))
-
-    return_rate = compute_return_rate(obs_raw)
-
-    obs_clean = drop_invalid_rows(obs_raw, config, window_name="observation")
-    outcome_clean = drop_invalid_rows(outcome_raw, config, window_name="outcome")
-
-    # as_of = đầu ngày NGAY SAU observation_end (nhất quán với cách split_windows
-    # coi observation_end là trọn ngày cuối). Nếu dùng chính observation_end
-    # (midnight) làm as_of, giao dịch xảy ra muộn hơn trong chính ngày đó sẽ cho
-    # recency_days âm — sai về mặt logic (không thể "recency âm").
-    as_of = pd.Timestamp(config["windows"]["observation_end"]) + pd.Timedelta(days=1)
-    features = compute_rfm_features(obs_clean, return_rate, as_of)
-    logger.info("Số khách hàng trong observation window: %d", len(features))
-
+    snapshots = build_temporal_snapshots(raw, config)
+    snapshots.to_csv(processed_path("customer_snapshots.csv", config), index=False)
+    snapshot_schedule(config).to_csv(outputs_path("temporal_schedule.csv"), index=False)
+    _, _, final = temporal_partitions(snapshots, config)
+    label_cols = ["Customer ID", "future_gross_sales", "repeat_purchase"]
+    features = final.drop(columns=["future_gross_sales", "repeat_purchase"])
+    labels = final[label_cols]
+    filtered = filter_valid_customers(raw, config)
+    obs_raw = filtered[(filtered["InvoiceDate"] >= pd.Timestamp(config["windows"]["observation_start"]))
+                       & (filtered["InvoiceDate"] < pd.Timestamp(config["validation"]["final_test_decision_date"]))]
+    obs_clean = drop_invalid_rows(obs_raw, config, "final_test/cohort")
     cohort = compute_cohort_view(obs_clean)
     cohort_path = outputs_path("cohort_retention.csv")
     cohort.to_csv(cohort_path, index=False)
     logger.info("Đã ghi cohort retention: %s", cohort_path)
-
-    labels = compute_labels(outcome_clean, features["Customer ID"])
 
     features_path = processed_path("customer_features.csv", config)
     labels_path = processed_path("customer_labels.csv", config)

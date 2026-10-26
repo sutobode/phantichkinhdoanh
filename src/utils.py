@@ -83,3 +83,22 @@ def merge_or_replace_columns(base_df, new_df, on: str):
     overlap = [c for c in new_df.columns if c != on and c in base_df.columns]
     base_df = base_df.drop(columns=overlap)
     return base_df.merge(new_df, on=on, how="left")
+
+
+def validate_final_test_predictions(df, config: dict) -> None:
+    """Reject legacy/demo/mixed-snapshot scores before any policy evaluation."""
+    import pandas as pd
+
+    required = {"Customer ID", "decision_date", "outcome_end_exclusive", "split",
+                "training_outcome_end_exclusive", "evaluation_design"}
+    if df.empty or not required.issubset(df.columns):
+        raise ValueError("Final temporal-test predictions required; rerun steps 02 and 03")
+    decision = pd.Timestamp(config["validation"]["final_test_decision_date"])
+    end = decision + pd.Timedelta(days=config["validation"]["outcome_horizon_days"])
+    if (df["Customer ID"].duplicated().any()
+            or not df["split"].eq("final_test").all()
+            or not df["evaluation_design"].eq("expanding_temporal_snapshots").all()
+            or not pd.to_datetime(df["decision_date"]).eq(decision).all()
+            or not pd.to_datetime(df["outcome_end_exclusive"]).eq(end).all()
+            or not pd.to_datetime(df["training_outcome_end_exclusive"]).lt(decision).all()):
+        raise ValueError("Policy evaluation requires only out-of-sample final temporal-test predictions")

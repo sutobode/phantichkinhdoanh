@@ -1,6 +1,6 @@
 """Week 6 — Final QA & reproducibility check.
 
-Chạy lại TOÀN BỘ pipeline từ đầu (02 -> 03 -> 04 -> 05), chạy pytest, và kiểm
+Chạy baseline pipeline (02 -> 03 -> 05; optional 04 for advanced), pytest, và kiểm
 tra các invariant quan trọng (không cột trùng, không giá trị âm vô lý, số
 liệu nhất quán giữa các file) trước khi nộp bài.
 
@@ -15,19 +15,23 @@ from pathlib import Path
 
 import pandas as pd
 
-from utils import PROJECT_ROOT, get_logger, load_config, outputs_path, processed_path
+from utils import PROJECT_ROOT, get_logger, load_config, outputs_path, processed_path, validate_final_test_predictions
 
 logger = get_logger("06_final_qa")
 
-STEPS = ["02_cleaning_features", "03_baseline_models", "04_advanced_models", "05_decision_scenario"]
+STEPS = ["02_cleaning_features", "03_baseline_models", "05_decision_scenario"]
 
 
-def run_pipeline_from_scratch() -> None:
-    for step in STEPS:
+def run_pipeline_from_scratch() -> list[str]:
+    steps = STEPS.copy()
+    if load_config()["decision"]["value_prediction_source"] == "advanced":
+        steps.insert(2, "04_advanced_models")
+    for step in steps:
         logger.info("Chạy %s ...", step)
         module = import_module(step)
         module.main()
-    logger.info("Đã chạy xong toàn bộ pipeline 02->05.")
+    logger.info("Completed temporal pipeline: %s", steps)
+    return steps
 
 
 def run_pytest() -> bool:
@@ -47,7 +51,15 @@ def check_invariants(config: dict) -> list[str]:
 
     features = pd.read_csv(processed_path("customer_features.csv", config))
     labels = pd.read_csv(processed_path("customer_labels.csv", config))
-    scores = pd.read_csv(processed_path("customer_scores.csv", config))
+    scores = pd.read_csv(processed_path("customer_test_scores.csv", config))
+    try:
+        validate_final_test_predictions(scores, config)
+    except ValueError as exc:
+        issues.append(str(exc))
+    if scores["baseline_future_revenue"].isna().any() or (scores["baseline_future_revenue"] < 0).any():
+        issues.append("Negative/missing business input revenue")
+    if ((scores["baseline_future_revenue"] <= 0) & scores["final_recommendation"].eq("nurture")).any():
+        issues.append("Non-positive revenue must not receive a nurture recommendation")
 
     # 1. Không cột trùng (_x/_y) trong customer_scores.csv
     dup_cols = [c for c in scores.columns if c.endswith("_x") or c.endswith("_y")]
@@ -77,15 +89,27 @@ def check_invariants(config: dict) -> list[str]:
 
     # 6. repeat_purchase label phải nhất quán với future_value > 0
     merged = labels.copy()
-    inconsistent = merged[(merged["future_value"] > 0) != (merged["repeat_purchase"] == 1)]
+    inconsistent = merged[(merged["future_gross_sales"] > 0) != (merged["repeat_purchase"] == 1)]
     if len(inconsistent) > 0:
         issues.append(f"{len(inconsistent)} dòng label repeat_purchase không khớp future_value>0")
 
     # 7. scenario_table.csv tồn tại và có >= 3 scenario (Baseline Required của đề)
     scenario_table = pd.read_csv(outputs_path("scenario_table.csv"))
-    if len(scenario_table) < 3:
+    if scenario_table["scenario"].nunique() < 3:
         issues.append(f"scenario_table.csv chỉ có {len(scenario_table)} scenario (yêu cầu >= 3)")
 
+    decision = import_module("05_decision_scenario")
+    try:
+        pd.testing.assert_frame_equal(scenario_table, decision.build_scenario_table(scores, config),
+                                      check_dtype=False, check_exact=False, rtol=1e-10, atol=1e-8)
+    except (AssertionError, ValueError) as exc:
+        issues.append(f"Scenario provenance/cost/capacity mismatch: {exc}")
+    for _, policies in scenario_table.groupby("scenario"):
+        if (set(policies["policy"]) != {"non_targeted", "rfm", "proposed"}
+                or policies["customers_targeted"].nunique() != 1
+                or policies["campaign_contact_cost"].nunique() != 1
+                or (policies["campaign_contact_cost"] > config["decision"]["budget_total"]).any()):
+            issues.append("Policy comparison must use equal actual contacts and budget")
     return issues
 
 
@@ -93,7 +117,7 @@ def main() -> None:
     config = load_config()
 
     logger.info("=== BƯỚC 1: Chạy lại toàn bộ pipeline từ đầu ===")
-    run_pipeline_from_scratch()
+    steps = run_pipeline_from_scratch()
 
     logger.info("=== BƯỚC 2: Chạy pytest ===")
     tests_passed = run_pytest()
@@ -104,7 +128,7 @@ def main() -> None:
     report_lines = [
         "# Final QA Report",
         "",
-        f"- Pipeline re-run từ đầu: OK ({len(STEPS)} bước)",
+        f"- Temporal pipeline re-run: OK ({len(steps)} steps; source={config['decision']['value_prediction_source']})",
         f"- pytest: {'PASSED' if tests_passed else 'FAILED — xem log outputs/logs/06_final_qa.log'}",
         f"- Invariant checks: {'PASSED — không phát hiện vấn đề' if not issues else 'FAILED'}",
     ]
