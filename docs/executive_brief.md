@@ -1,75 +1,68 @@
 # Executive Brief — Customer Retention & Promotion Targeting
 
-**To:** Marketing / CRM decision-maker | **Data:** UCI Online Retail II historical transactions
+**To:** Marketing / CRM decision-maker | **Evidence:** UCI Online Retail II,
+5,281 customers in the final 90-day temporal test beginning 2011-09-10.
 
-## Decision
+## Decision and main finding
 
-Prioritize customers only when a promotion has positive **simulated NET margin**
-after discount-related product costs and contact expense. A no-campaign decision
-is permitted; an available budget does not have to be spent.
+**Do not launch any of the three currently assumed discount campaigns.** None
+offers positive simulated NET margin after fixed-unit product costs and contact
+expense. **No Promotion = £0 simulated incremental margin** is the decision reference.
+An available budget does not have to be spent.
 
-## Current recommendation
+The real-data baseline predicts repeat purchase with PR-AUC **0.750184** and
+ROC-AUC **0.789977** (actual repeat rate **43.36%**; naive PR-AUC **0.433630**).
+Future-gross-sales MAE is **£395.69**, RMSE **£2,016.14**. These are temporal-test
+prediction metrics, not evidence that promotion causes additional sales.
 
-**Do not launch any of the three currently assumed discount campaigns.** Keeping
-unit product costs fixed changes the earlier economic conclusion. Even for the
-highest assumed-growth segment (At-risk), before-contact incremental margin is:
+## Policy comparison — simulated NET margin
 
-| Scenario | Discount | Base sales-volume growth | Best coefficient × predicted revenue |
-|---|---:|---:|---:|
-| Conservative | 5% | 10% | -0.0045 |
-| Moderate | 10% | 20% | -0.0220 |
-| Aggressive | 20% | 35% | -0.1090 |
+| Scenario | Non-targeted mean | Random-policy 95% interval | RFM | Proposed / No Promotion |
+|---|---:|---|---:|---:|
+| Conservative | -£17,417.59 | [-£21,707.94, -£14,023.76] | -£55,333.45 | £0 / £0 |
+| Moderate | -£37,407.57 | [-£46,583.42, -£30,081.21] | -£118,314.35 | £0 / £0 |
+| Aggressive | -£90,677.15 | [-£112,076.51, -£73,360.59] | -£277,865.97 | £0 / £0 |
 
-Subtracting £0.50/contact makes every customer contribution negative when predicted
-revenue is nonnegative. Each proposed policy therefore contacts **0 customers**, costs
-**£0** and produces **£0 simulated NET change**. Random and RFM comparators still
-contact K customers using the available capacity and incur simulated NET losses
-when K>0. This exposes the simulated value of not running an unprofitable campaign.
-Exact baseline losses require the final-test predictions. These implications follow
-from the stated assumptions, not observed campaign results.
+Non-targeted averages **1,000 seeded random campaigns**, each contacting **1,500**
+customers; its interval describes variation across random customer selections,
+**not a causal confidence interval**. RFM also contacts 1,500. Both spend **£750**
+at **£0.50/contact**. Proposed selects only positive-NET-margin customers, up to
+the same capacity; it selects zero and spends £0 in all three scenarios.
+Source: `outputs/scenario_table.csv`.
 
-The former positive-margin recommendations and customer counts are **superseded**.
-They used different economics and mixed in-sample predictions. Corrected UCI
-predictive metrics/population counts await a raw-data rerun; no model accuracy or
-positive campaign return is claimed here.
+## Assumptions and target groups
 
-## Policy and target groups
+- Discounts/base sales-volume growth: **5%/10%, 10%/20%, 20%/35%**. Gross margin:
+  **40%**. Growth is an assumed proportional increase, not conversion probability.
+- Segment growth multipliers: Champions 0.5, Loyal 1.0, At-risk 1.3, Lost 0.4;
+  these are business assumptions, not measured treatment responsiveness.
+- Unit product costs remain fixed. NET contribution is
+  `v*((1+r)*(g-d)-g) - £0.50`, with nonnegative predicted gross sales `v`.
+- **Nurture:** positive NET contribution, ranked under the budget. None currently
+  qualify. **Retain:** positive-value Champions/Loyal without discounted offers;
+  any service/relationship benefit is unmeasured. **No-offer:** remaining customers.
 
-- **Nurture:** positive predicted revenue AND positive NET scenario margin;
-  rank descending and select within the contact budget. None qualify under the
-  three current assumptions; sensitivity can explore genuinely different assumptions.
-- **Retain:** positive-value Champions/Loyal with nonpositive promotional margin;
-  consider non-discount relationship/service attention. Its benefit is not estimated.
-- **No-offer:** remaining customers; no discounted campaign recommended.
+## Sensitivity and decision gate
 
-Contact budget is **£750**, at **£0.50/customer**:
-**K=min(1,500, final-test population size)**. Comparisons use the same population,
-maximum capacity K, per-contact cost and scenario assumptions. Seeded random and
-RFM ranking each use K; positive-NET-margin ranking can use fewer, including zero.
+At 10% discount, positive-value At-risk customers need median assumed base growth
+of **26.75%**, exceeding the configured 20%; their median supportable discount at
+20% growth is **7.91%**. Explore smaller discounts or independently supported
+growth assumptions rather than changing assumptions merely to produce profit.
 
-## Evidence and assumptions
+First profitable points on the tested discount × growth grid are **5%/20%**
+(£7,175.92), **10%/30%** (£1,424.27), and **15%/50%** (£962.39). No campaign is
+profitable at 20% discount through 50% growth. In separate one-at-a-time checks,
+35% growth at 10% discount gives £3,990.80. These are exploratory, non-causal
+scenarios—not evidence to launch a campaign. Validate any changed assumption
+through a randomized pilot before rollout.
 
-- The required baseline is logistic repeat-purchase prediction plus linear
-  future-gross-sales prediction and RFM. GBM remains an optional comparison.
-- Features are known before each decision. Train origins: 2010-12-01 and 2011-03-01;
-  validation: 2011-06-01; final test: 2011-09-10. Each outcome lasts 90 days.
-  Models are refitted only on fully observed earlier labels before final prediction.
-- Main business outputs use final temporal-test predictions only, not demo scores.
-- Value means predicted **gross positive sales under historical behavior**, clipped
-  at zero; not net returns, lifetime CLV or an identified no-promotion counterfactual.
-- Gross margin is assumed 40%. Unit product costs stay unchanged with discount.
-  NET contribution is `v*((1+r)*(g-d)-g) - 0.50`.
-- `response_rate` means assumed proportional pre-discount sales-volume growth,
-  not conversion probability. Segment multipliers are Champions 0.5, Loyal 1.0,
-  At-risk 1.3, Lost 0.4; they are unmeasured business assumptions.
-- No randomized promotion treatment/control exists. This is scenario analysis,
-  **not causal uplift, true promotion ROI or actual incremental profit**.
+## Limitations
 
-## Next decision gate and risks
-
-Complete the raw-data rerun before using predictive metrics. Review the four-axis
-sensitivity table and test any revised promotion assumption through a randomized
-pilot before rollout. Monitor realized product margin, returns and contact costs.
-Historical sales, retained duplicates, outlier predictions and time drift limit
-transfer to current customers. Do not replace assumptions solely to obtain a
-profitable recommendation.
+There is no randomized treatment/control: no causal uplift, true promotion ROI,
+or actual incremental profit is claimed. Forecasts describe historical gross
+positive sales, not untreated revenue, net returns or lifetime CLV. Of 1,067,371
+raw rows, 34,335 exact duplicates are retained under the documented source policy.
+Outliers, return exclusions, time drift and uncertain growth assumptions limit
+transfer to current customers. Detailed methodology and provenance are in the
+model card and `outputs/run_manifest.json`; the current evaluation score artifact
+is `data/processed/customer_test_scores.csv`.

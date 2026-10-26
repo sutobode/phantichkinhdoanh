@@ -46,16 +46,25 @@ Baseline: RFM + logistic regression + clipped linear future-gross-sales predicti
 GBM is an optional, separately reported comparison; select the policy source before
 inspecting final-test results. No current full-population demo scores enter metrics.
 
-Compare seeded random, RFM-ranked, and positive-NET-margin-ranked contacts with
+Compare 1,000 seeded uniform random campaigns (Monte Carlo mean and random-policy
+simulation interval), RFM-ranked, and positive-NET-margin-ranked contacts with
 the same maximum capacity K=min(floor(£750/£0.50), evaluation population size).
 Random and RFM use K contacts; proposed selects positive NET contributions up to K,
 possibly zero. Population, scenario assumptions and per-contact cost are identical.
+No Promotion is an explicit £0 decision reference with zero contacts, not a model.
+The real final-test population is 5,281 customers (43.36% repeat purchase), so K=1,500.
 Contact costs are deducted. With unchanged unit product costs:
 `net = max(predicted_gross_sales, 0) * ((1+r)*(g-d)-g) - contact_cost`.
 `r` means assumed proportional pre-discount sales-volume growth, not response
 probability. Predicted sales describe historical behavior, not a no-promotion
 counterfactual. Under all three configured scenarios no positive net contribution
 is possible; no-contact is an admissible decision, not a reason to change assumptions.
+
+The baseline real-data rerun gives PR-AUC 0.750184 / ROC-AUC 0.789977 and
+future-gross-sales MAE £395.69 / RMSE £2,016.14. Decision extensions calculate
+analytical break-even growth/discounts and a 20-cell response × discount grid;
+the dashboard explores assumptions without fitting models. Full results and
+non-causal policy comparisons are in `docs/model_card.md` and `docs/executive_brief.md`.
 
 ## Vì sao KHÔNG dùng causal uplift
 

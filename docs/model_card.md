@@ -62,10 +62,18 @@ RFM-segment error analysis and country-group probability-error diagnostics.
 
 ## Current result status
 
-**Corrected UCI predictive metrics and population counts are pending a raw-data
-rerun.** The remediation environment lacks `data/raw/online_retail_II.xlsx`,
-openpyxl and Pandera; no replacement accuracy figures are invented.
-Synthetic integration tests verify mechanics, not predictive performance.
+The real UCI baseline rerun evaluates **5,281 final-test customers**, with a
+**43.36%** repeat-purchase rate. Raw rows: **1,067,371**; exact duplicates beyond
+first: **34,335**, retained. Synthetic tests validate mechanics separately.
+
+| Final-test model | PR-AUC | ROC-AUC | MAE | RMSE |
+|---|---:|---:|---:|---:|
+| Logistic Regression | 0.7501843981 | 0.7899770637 | — | — |
+| Linear Regression, clipped | — | — | £395.6872412 | £2,016.1352842 |
+| Naive | 0.4336299943 | — | £636.3386447 | £3,288.8721982 |
+
+Source: `models/temporal_registry.json`; validation metrics and bootstrap intervals
+are stored separately there. No new advanced models are fitted in Phase 1 + Phase 2.
 
 Corrected runs write `models/temporal_registry.json` (separate validation/final-test
 metrics), `outputs/temporal_model_comparison.csv` when advanced is run, and
@@ -87,7 +95,7 @@ unprefixed diagnostic artifacts are historical only; see `outputs/RESULTS_STATUS
 - NET incremental margin = before-contact margin − £0.50/contact.
 - Contact budget £750; maximum 1,500. Discounts affect profit, not this contact budget.
 
-Policies on the same final-test population: seeded random non-targeted, descending
+Policies on the same final-test population: Monte Carlo non-targeted, descending
 RFM sum (then monetary, then customer ID), and descending positive NET margin.
 All share maximum K=min(floor(contact budget/contact cost), evaluation population).
 Random and RFM contact K customers regardless of proposed eligibility. Proposed
@@ -95,20 +103,63 @@ selects only positive NET contributions, ranked descending, up to K and may sele
 zero. Actual contact costs are deducted for each policy. NET margin/contact is
 reported as 0 by convention for a zero-contact policy. No over-budget blanket
 comparison is used.
+**No Promotion = £0** is the additional zero-contact decision reference, not a model.
+Non-targeted uses 1,000 independent uniform K-subsets without replacement within
+each campaign (seed 42, canonical customer order). The same seeded draws are used
+across scenarios. Its primary metric is the Monte Carlo mean. Reported 2.5th/97.5th
+percentiles describe random-policy variation, not causal confidence or forecast uncertainty.
 
 With the unchanged three scenarios, even the highest multiplier produces negative
 before-contact coefficients: -0.0045, -0.022, -0.109 respectively. Thus for **any
 nonnegative v**, all three proposed campaigns select zero customers, spend £0 and
 have £0 simulated NET change. Random/RFM still use K contacts and have negative
 simulated NET totals when K>0. The proposed-minus-random difference therefore
-shows the simulated value of abstaining; exact baseline totals require the final
-test predictions. This algebraic implication is not an empirically rerun UCI result and not evidence
-that promotion never works. Assumptions were not adjusted to manufacture profit.
+shows the simulated value of abstaining. The real-data policy rerun confirms:
+
+| Scenario | Non-targeted MC mean NET | Random-policy 2.5th–97.5th percentiles | RFM NET | Proposed / No Promotion |
+|---|---:|---|---:|---:|
+| Conservative | -£17,417.59 | [-£21,707.94, -£14,023.76] | -£55,333.45 | £0 / £0 |
+| Moderate | -£37,407.57 | [-£46,583.42, -£30,081.21] | -£118,314.35 | £0 / £0 |
+| Aggressive | -£90,677.15 | [-£112,076.51, -£73,360.59] | -£277,865.97 | £0 / £0 |
+
+Random/RFM each contact 1,500 customers and spend £750. Proposed and No Promotion
+contact zero and spend zero. Source: `outputs/scenario_table.csv`. These replace
+the earlier single-draw random benchmark, not the unchanged predictive results.
+They are conditional simulations on real-data forecasts, not observed promotion
+effects or evidence that promotion never works. Main assumptions remain unchanged.
 
 Sensitivity retains the four endpoint ranges: response 0.10–0.35, discount
 0.05–0.20, gross margin 0.30–0.50, At-risk multiplier 0.91–1.69. It now measures
 budget-constrained NET margin. Reversed low/high outcomes have nonnegative plot
 widths. Margin bootstrap conditions on predictions/assumptions, not causal uncertainty.
+Moderate one-at-a-time results: discount 5% → £7,175.92; base growth 35% → £3,990.80;
+gross margin 50% → £143.77; At-risk multiplier 1.69 → £15.05.
+
+### Break-even and response × discount frontier
+
+For v>0, required effective growth is `(g+c/v)/(g-d)-1` when g>d; required base
+growth divides this by the positive segment multiplier. Maximum discount at fixed
+effective growth is `g-(g+c/v)/(1+r)`. Equality produces zero NET margin, whereas
+targeting requires strictly positive margin. Invalid cases return NaN; negative
+discount bounds are retained to show that even no discount cannot cover contact cost.
+
+At 10% discount, among positive-value customers the median required base growth is:
+At-risk **26.75%**, Loyal **34.47%**, Champions **67.38%**, Lost **90.49%**.
+For At-risk customers at the configured 20% base growth, median supportable discount
+is **7.91%**, below the proposed 10%. Quantiles exclude undefined values: 3,698 of
+5,281 customers have positive predicted sales (779 At-risk). Eligibility shares
+still use all customers. Sources: `outputs/break_even_by_segment.csv`, `break_even_summary.csv`.
+
+The 20-cell exploratory surface holds margin=40%, budget=£750 and multipliers fixed.
+First profitable tested grid points by discount: 5%/20% base growth (1,500 contacts,
+£7,175.92); 10%/30% (664, £1,424.27); 15%/50% (616, £962.39). At 20% discount no
+campaign qualifies through 50% growth. This is a discrete assumption frontier,
+not a measured causal relationship. Outputs: `outputs/response_discount_surface.csv`
+and `outputs/figures/response_discount_surface.png`.
+
+The dashboard sandbox recomputes the same policy arithmetic on filtered final-test
+scores without retraining, with explicitly labeled exploratory scope and five
+decision KPIs. Saved global comparisons/cohorts are not changed by its controls.
 
 ## Risks, limitations and ethics/bias
 
@@ -135,3 +186,8 @@ Configuration: `config/params.yaml`. Baseline: 02 → 03 → 05; optional 04 run
 test-label independence, policy provenance, clipping, financial arithmetic, equal
 maximum capacity (not equal actual contact counts), deterministic scenarios and
 tornado geometry. See README for commands.
+Final QA generates and hash-validates `outputs/run_manifest.json`, recording actual
+raw/config/requirements SHA-256 hashes, Git commit and dirty state, Python/platform,
+timestamp, temporal design, prediction source, raw rows and final customer count.
+Python remains 3.11; validate the activated environment with `python --version`
+and `pip check`. The pinned dependencies have not been broadened or upgraded.

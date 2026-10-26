@@ -9,13 +9,15 @@ Chạy: python src/06_final_qa.py
 from __future__ import annotations
 
 import subprocess
+import json
 import sys
 from importlib import import_module
 from pathlib import Path
 
 import pandas as pd
 
-from utils import PROJECT_ROOT, get_logger, load_config, outputs_path, processed_path, validate_final_test_predictions
+from utils import (PROJECT_ROOT, CONFIG_PATH, get_logger, load_config, outputs_path, processed_path,
+                   raw_path, validate_final_test_predictions, build_run_manifest, sha256_file)
 
 logger = get_logger("06_final_qa")
 
@@ -107,13 +109,41 @@ def check_invariants(config: dict) -> list[str]:
     for _, policies in scenario_table.groupby("scenario"):
         capacity_k = min(int(config["decision"]["budget_total"] // config["decision"]["contact_cost_per_customer"]), len(scores))
         baselines = policies[policies["policy"].isin(["non_targeted", "rfm"])]
-        if (set(policies["policy"]) != {"non_targeted", "rfm", "proposed"}
+        no_promotion = policies[policies["policy"].eq("no_promotion")]
+        if (set(policies["policy"]) != {"no_promotion", "non_targeted", "rfm", "proposed"}
                 or not policies["campaign_capacity"].eq(capacity_k).all()
                 or not baselines["customers_targeted"].eq(capacity_k).all()
                 or not policies["customers_targeted"].between(0, capacity_k).all()
                 or (policies["campaign_contact_cost"] > config["decision"]["budget_total"]).any()):
             issues.append("Policies must share maximum capacity; Random/RFM use K, Proposed uses at most K")
+        if not no_promotion[["customers_targeted", "campaign_contact_cost", "simulated_net_incremental_margin"]].eq(0).all().all():
+            issues.append("No Promotion must be exactly zero")
+    break_even_segment, break_even_summary = decision.build_break_even_tables(scores, config)
+    for name, expected in (
+        ("break_even_by_segment.csv", break_even_segment),
+        ("break_even_summary.csv", break_even_summary),
+        ("response_discount_surface.csv", decision.response_discount_surface(scores, config)),
+    ):
+        try:
+            pd.testing.assert_frame_equal(pd.read_csv(outputs_path(name)), expected,
+                                          check_dtype=False, check_exact=False, rtol=1e-10, atol=1e-8)
+        except AssertionError as exc:
+            issues.append(f"Decision analysis output mismatch ({name}): {exc}")
     return issues
+
+
+def write_run_manifest(config: dict) -> None:
+    scores = pd.read_csv(processed_path("customer_test_scores.csv", config))
+    raw_file = raw_path("online_retail_II.xlsx", config)
+    quality = pd.read_csv(outputs_path("data_quality.csv"))
+    manifest = build_run_manifest(config, raw_file, CONFIG_PATH, quality.iloc[0]["raw_rows"],
+                                  scores, PROJECT_ROOT / "requirements.txt")
+    path = outputs_path("run_manifest.json")
+    path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    if (saved != manifest or saved["raw_data_sha256"] != sha256_file(raw_file)
+            or saved["config_sha256"] != sha256_file(CONFIG_PATH)):
+        raise ValueError("Run manifest failed round-trip/hash validation")
 
 
 def main() -> None:
@@ -127,6 +157,8 @@ def main() -> None:
 
     logger.info("=== BƯỚC 3: Kiểm tra invariants ===")
     issues = check_invariants(config)
+    if tests_passed and not issues:
+        write_run_manifest(config)
 
     report_lines = [
         "# Final QA Report",
@@ -134,6 +166,7 @@ def main() -> None:
         f"- Temporal pipeline re-run: OK ({len(steps)} steps; source={config['decision']['value_prediction_source']})",
         f"- pytest: {'PASSED' if tests_passed else 'FAILED — xem log outputs/logs/06_final_qa.log'}",
         f"- Invariant checks: {'PASSED — không phát hiện vấn đề' if not issues else 'FAILED'}",
+        f"- Run manifest: {'GENERATED and hash-validated — outputs/run_manifest.json' if tests_passed and not issues else 'NOT GENERATED for this run'}",
     ]
     if issues:
         report_lines.append("\n## Vấn đề phát hiện được:")

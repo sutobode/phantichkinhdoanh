@@ -37,6 +37,7 @@ from utils import PROJECT_ROOT, get_logger, load_config, outputs_path, processed
 logger = get_logger("05_decision_scenario")
 
 VALUE_COL = "baseline_future_revenue"
+ANALYSIS_TYPE = "scenario_based_non_causal"
 
 
 def load_scores(config: dict) -> pd.DataFrame:
@@ -95,6 +96,26 @@ def budget_constrained_selection(margin: pd.Series, budget_total: float, cost_pe
     return is_selected
 
 
+def monte_carlo_random_policy(net_margin, capacity_k: int, simulations: int, seed: int) -> dict:
+    """Uniform K-subsets without replacement. Interval describes random POLICY
+    variation conditional on forecasts/assumptions, not causal uncertainty."""
+    values = np.asarray(net_margin, dtype=float)
+    if (values.ndim != 1 or not np.isfinite(values).all()
+            or not isinstance(capacity_k, (int, np.integer)) or not 0 <= capacity_k <= len(values)
+            or not isinstance(simulations, (int, np.integer)) or simulations <= 0):
+        raise ValueError("Finite margins, valid integer capacity and positive simulation count required")
+    rng = np.random.default_rng(seed)
+    if capacity_k == 0 or capacity_k == len(values):
+        totals = np.full(simulations, values.sum() if capacity_k else 0.0)
+    else:
+        totals = np.array([values[rng.choice(len(values), size=capacity_k, replace=False)].sum()
+                           for _ in range(simulations)])
+    low, high = np.quantile(totals, [0.025, 0.975])
+    return {"random_mean_net_margin": float(totals.mean()),
+            "random_p025_net_margin": float(low), "random_p975_net_margin": float(high),
+            "random_policy_simulations": simulations, "random_policy_sample_size": capacity_k}
+
+
 def build_scenario_table(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     df = prepare_scores(df, config)
     dec = config["decision"]
@@ -104,24 +125,35 @@ def build_scenario_table(df: pd.DataFrame, config: dict) -> pd.DataFrame:
         gross = incremental_margin(df[VALUE_COL], eff_rr, scenario["discount_pct"], dec["gross_margin_pct"])
         net = gross - dec["contact_cost_per_customer"]
         policies = policy_selections(df, net, config)
-        random_total = float(net[policies["non_targeted"]].sum())
+        capacity_k = min(int(dec["budget_total"] // dec["contact_cost_per_customer"]), len(df))
+        random_summary = monte_carlo_random_policy(net, capacity_k, dec["random_policy_simulations"], config["seed"])
+        random_total = random_summary["random_mean_net_margin"]
         for policy, selected in policies.items():
             n = int(selected.sum())
-            total_net = float(net[selected].sum())
+            total_net = random_total if policy == "non_targeted" else float(net[selected].sum())
+            contact_cost = n * dec["contact_cost_per_customer"]
             rows.append({
                 "scenario": scenario["name"], "policy": policy,
+                "analysis_type": ANALYSIS_TYPE,
                 "decision_date": config["validation"]["final_test_decision_date"],
                 "prediction_source": dec["value_prediction_source"],
                 "evaluation_population": "final_temporal_test", "n_evaluation_customers": len(df),
                 "discount_pct": scenario["discount_pct"], "response_rate_reference": scenario["response_rate"],
                 "gross_margin_pct": dec["gross_margin_pct"], "campaign_budget": dec["budget_total"],
-                "campaign_capacity": min(int(dec["budget_total"] // dec["contact_cost_per_customer"]), len(df)),
+                "campaign_capacity": capacity_k,
                 "contact_cost_per_customer": dec["contact_cost_per_customer"],
-                "customers_targeted": n, "campaign_contact_cost": n * dec["contact_cost_per_customer"],
-                "simulated_gross_incremental_margin": float(gross[selected].sum()),
+                "customers_targeted": n, "campaign_contact_cost": contact_cost,
+                "simulated_gross_incremental_margin": total_net + contact_cost,
                 "simulated_net_incremental_margin": total_net,
                 "net_margin_per_targeted_customer": total_net / n if n else 0.0,
                 "simulated_margin_difference_vs_baseline": total_net - random_total,
+                "simulated_margin_vs_no_promotion": total_net,
+                "random_mean_net_margin": random_total if policy == "non_targeted" else np.nan,
+                "random_p025_net_margin": random_summary["random_p025_net_margin"] if policy == "non_targeted" else np.nan,
+                "random_p975_net_margin": random_summary["random_p975_net_margin"] if policy == "non_targeted" else np.nan,
+                "random_policy_simulations": dec["random_policy_simulations"] if policy == "non_targeted" else 0,
+                "random_policy_sample_size": capacity_k if policy == "non_targeted" else 0,
+                "interval_type": "random_policy_simulation_not_causal_CI" if policy == "non_targeted" else "not_applicable",
             })
     return pd.DataFrame(rows)
 
@@ -130,12 +162,130 @@ def policy_selections(df: pd.DataFrame, net_margin: pd.Series, config: dict) -> 
     dec = config["decision"]
     proposed = budget_constrained_selection(net_margin, dec["budget_total"], dec["contact_cost_per_customer"])
     capacity_k = min(int(dec["budget_total"] // dec["contact_cost_per_customer"]), len(df))
-    # Baselines use available capacity; Proposed may abstain from unprofitable contacts.
+    # Single random mask is a helper only; build_scenario_table reports Monte Carlo mean.
     random_ids = df.sample(n=capacity_k, random_state=config["seed"]).index
     rfm_ids = df.sort_values(["rfm_score", "monetary", "Customer ID"],
                             ascending=[False, False, True], kind="stable").index[:capacity_k]
-    return {"non_targeted": pd.Series(df.index.isin(random_ids), index=df.index),
+    return {"no_promotion": pd.Series(False, index=df.index),
+            "non_targeted": pd.Series(df.index.isin(random_ids), index=df.index),
             "rfm": pd.Series(df.index.isin(rfm_ids), index=df.index), "proposed": proposed}
+
+
+def break_even_effective_growth(v, g, d, c):
+    """Required assumed volume growth. Undefined cases return NaN, never infinity."""
+    v, g, d, c = np.broadcast_arrays(*[np.asarray(x, dtype=float) for x in (v, g, d, c)])
+    valid = (np.isfinite(v) & np.isfinite(g) & np.isfinite(d) & np.isfinite(c)
+             & (v > 0) & (g > d) & (g <= 1) & (d >= 0) & (c >= 0))
+    per_value = np.divide(c, v, out=np.full(v.shape, np.nan), where=valid)
+    return np.divide(g + per_value, g - d, out=np.full(v.shape, np.nan), where=valid) - 1
+
+
+def break_even_discount(v, g, r, c):
+    """Maximum supportable discount; a negative result means even d=0 is unprofitable."""
+    v, g, r, c = np.broadcast_arrays(*[np.asarray(x, dtype=float) for x in (v, g, r, c)])
+    valid = (np.isfinite(v) & np.isfinite(g) & np.isfinite(r) & np.isfinite(c)
+             & (v > 0) & (g >= 0) & (g <= 1) & (r >= 0) & (c >= 0))
+    per_value = np.divide(c, v, out=np.full(v.shape, np.nan), where=valid)
+    return g - np.divide(g + per_value, 1 + r, out=np.full(v.shape, np.nan), where=valid)
+
+
+def break_even_base_response(required_effective_growth, multiplier):
+    growth, multiplier = np.broadcast_arrays(np.asarray(required_effective_growth, dtype=float),
+                                              np.asarray(multiplier, dtype=float))
+    valid = np.isfinite(growth) & np.isfinite(multiplier) & (multiplier > 0)
+    return np.divide(growth, multiplier, out=np.full(growth.shape, np.nan), where=valid)
+
+
+def build_break_even_tables(df: pd.DataFrame, config: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
+    df = prepare_scores(df, config)
+    dec = config["decision"]
+    segment_rows, summary_rows = [], []
+    for scenario in dec["discount_response_scenarios"]:
+        multiplier = df["rfm_segment"].map(dec["segment_response_multiplier"])
+        growth = effective_response_rate(df, scenario["response_rate"], dec["segment_response_multiplier"])
+        effective_required = break_even_effective_growth(df[VALUE_COL], dec["gross_margin_pct"],
+                                                         scenario["discount_pct"], dec["contact_cost_per_customer"])
+        analysis = df[["rfm_segment"]].copy()
+        analysis["required_base_response"] = break_even_base_response(effective_required, multiplier)
+        analysis["maximum_discount"] = break_even_discount(df[VALUE_COL], dec["gross_margin_pct"],
+                                                           growth, dec["contact_cost_per_customer"])
+        analysis["eligible"] = incremental_margin(df[VALUE_COL], growth, scenario["discount_pct"],
+                                                  dec["gross_margin_pct"], dec["contact_cost_per_customer"]) > 0
+        for segment, group in [("all", analysis), *list(analysis.groupby("rfm_segment", sort=True))]:
+            row = {"scenario": scenario["name"], "segment": segment, "analysis_type": ANALYSIS_TYPE,
+                   "decision_date": config["validation"]["final_test_decision_date"],
+                   "discount_pct": scenario["discount_pct"], "response_rate": scenario["response_rate"],
+                   "gross_margin_pct": dec["gross_margin_pct"], "contact_cost_per_customer": dec["contact_cost_per_customer"],
+                   "customers": len(group), "valid_break_even_customers": int(group["required_base_response"].notna().sum()),
+                   "customers_eligible": int(group["eligible"].sum()), "eligible_share": float(group["eligible"].mean())}
+            for column in ("required_base_response", "maximum_discount"):
+                for suffix, quantile in (("p25", 0.25), ("median", 0.5), ("p75", 0.75)):
+                    row[f"{column}_{suffix}"] = group[column].quantile(quantile)
+            (summary_rows if segment == "all" else segment_rows).append(row)
+    return pd.DataFrame(segment_rows), pd.DataFrame(summary_rows)
+
+
+def evaluate_proposed_scenario(df: pd.DataFrame, config: dict, discount_pct: float,
+                               response_rate: float, gross_margin_pct: float, budget_total: float):
+    """In-memory policy calculation on already validated scores (or a filtered subset).
+    No fitting or future outcomes are used. Empty filtered populations are valid.
+    """
+    dec = config["decision"]
+    result = df.copy()
+    growth = effective_response_rate(result, response_rate, dec["segment_response_multiplier"])
+    net = incremental_margin(result[VALUE_COL], growth, discount_pct, gross_margin_pct,
+                             dec["contact_cost_per_customer"])
+    selected = budget_constrained_selection(net, budget_total, dec["contact_cost_per_customer"])
+    result["simulated_net_incremental_margin"] = net
+    result["targeted_under_budget_reference_scenario"] = selected
+    result["final_recommendation"] = assign_recommendation(result, net)
+    result["target_rank"] = net.where(net > 0).rank(method="first", ascending=False).astype("Int64")
+    n = int(selected.sum())
+    total = float(net[selected].sum())
+    summary = {"analysis_type": ANALYSIS_TYPE, "evaluation_population": "final_temporal_test",
+               "n_evaluation_customers": len(df), "discount_pct": discount_pct, "response_rate": response_rate,
+               "gross_margin_pct": gross_margin_pct, "campaign_budget": budget_total,
+               "contact_cost_per_customer": dec["contact_cost_per_customer"],
+               "campaign_capacity": min(int(budget_total // dec["contact_cost_per_customer"]), len(df)),
+               "customers_eligible": int((net > 0).sum()), "customers_targeted": n,
+               "campaign_contact_cost": n * dec["contact_cost_per_customer"],
+               "simulated_net_incremental_margin": total, "simulated_margin_vs_no_promotion": total}
+    return result, summary
+
+
+def response_discount_surface(df: pd.DataFrame, config: dict) -> pd.DataFrame:
+    df = prepare_scores(df, config)
+    dec = config["decision"]
+    rows = []
+    for discount in dec["sensitivity_grid"]["discount_pct"]:
+        for response in dec["sensitivity_grid"]["response_rate"]:
+            _, summary = evaluate_proposed_scenario(df, config, discount, response,
+                                                     dec["gross_margin_pct"], dec["budget_total"])
+            summary["decision_date"] = config["validation"]["final_test_decision_date"]
+            rows.append(summary)
+    return pd.DataFrame(rows)
+
+
+def plot_response_discount_surface(surface: pd.DataFrame) -> None:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    table = surface.pivot(index="response_rate", columns="discount_pct", values="simulated_net_incremental_margin").sort_index()
+    fig, ax = plt.subplots(figsize=(8, 5))
+    image = ax.imshow(table.to_numpy(), origin="lower", aspect="auto", cmap="YlGn")
+    ax.set_xticks(range(len(table.columns)), [f"{v:.0%}" for v in table.columns])
+    ax.set_yticks(range(len(table.index)), [f"{v:.0%}" for v in table.index])
+    for i in range(len(table.index)):
+        for j in range(len(table.columns)):
+            value = table.iloc[i, j]
+            ax.text(j, i, "No campaign" if value == 0 else f"£{value:,.0f}", ha="center", va="center", fontsize=8)
+    ax.set_xlabel("Assumed discount")
+    ax.set_ylabel("Assumed base sales-volume growth")
+    ax.set_title("Proposed policy: simulated NET margin vs No Promotion\nExploratory assumptions — non-causal")
+    fig.colorbar(image, ax=ax, label="Simulated NET margin (£)")
+    fig.savefig(outputs_path("figures/response_discount_surface.png"), dpi=120, bbox_inches="tight")
+    plt.close(fig)
 
 
 def bootstrap_margin_ci(margin_selected: np.ndarray, n_boot: int, seed: int) -> tuple[float, float, float]:
@@ -296,6 +446,13 @@ def main() -> None:
     tornado_path = outputs_path("tornado_sensitivity.csv")
     tornado_df.to_csv(tornado_path, index=False)
     plot_tornado(tornado_df)
+
+    by_segment, summary = build_break_even_tables(df, config)
+    by_segment.to_csv(outputs_path("break_even_by_segment.csv"), index=False)
+    summary.to_csv(outputs_path("break_even_summary.csv"), index=False)
+    surface = response_discount_surface(df, config)
+    surface.to_csv(outputs_path("response_discount_surface.csv"), index=False)
+    plot_response_discount_surface(surface)
 
     # Final-test evaluation deliverable; never consume legacy/demo customer_scores.csv.
     scores_path = processed_path("customer_test_scores.csv", config)

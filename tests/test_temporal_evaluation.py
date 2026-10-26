@@ -24,6 +24,7 @@ decision = import_module("05_decision_scenario")
 def config():
     cfg = deepcopy(load_config())
     cfg["validation"]["n_bootstrap"] = 5
+    cfg["decision"]["random_policy_simulations"] = 40
     return cfg
 
 
@@ -122,6 +123,7 @@ def test_baseline_only_pipeline_reaches_policy_without_gbm(raw, config, tmp_path
     monkeypatch.setattr(baseline, "MODELS_DIR", tmp_path)
     monkeypatch.setattr(baseline, "REGISTRY_PATH", tmp_path / "temporal_registry.json")
     monkeypatch.setattr(decision, "plot_tornado", lambda table: None)
+    monkeypatch.setattr(decision, "plot_response_discount_surface", lambda table: None)
     baseline.main()
     decision.main()
     scores = pd.read_csv(tmp_path / "customer_test_scores.csv")
@@ -130,11 +132,11 @@ def test_baseline_only_pipeline_reaches_policy_without_gbm(raw, config, tmp_path
     assert scores["prediction_source"].eq("baseline").all()
     assert not (tmp_path / "customer_test_predictions_advanced.csv").exists()
     assert table["scenario"].nunique() == 3
-    assert set(table["policy"]) == {"non_targeted", "rfm", "proposed"}
+    assert set(table["policy"]) == {"no_promotion", "non_targeted", "rfm", "proposed"}
     assert (scores["baseline_future_revenue"] >= 0).all()
     # All original assumptions are unprofitable with unchanged unit COGS.
     proposed = table[table.policy == "proposed"]
-    baselines = table[table.policy != "proposed"]
+    baselines = table[table.policy.isin(["non_targeted", "rfm"])]
     assert proposed["customers_targeted"].eq(0).all()
     assert proposed["simulated_net_incremental_margin"].eq(0).all()
     assert baselines["customers_targeted"].eq(len(scores)).all()

@@ -11,9 +11,9 @@ dài hạn — chứng minh đã nghĩ tới production dù ngoài phạm vi ch�
   của batch khách hàng mới mỗi tháng. PSI > 0.2 trên feature bất kỳ → cảnh
   báo review.
 - **Performance decay**: theo dõi PR-AUC/MAE trên nhãn thực tế (có độ trễ —
-  chỉ biết sau khi outcome window mới kết thúc) mỗi quý, so với baseline hiện
-  từ `models/temporal_registry.json` sau khi chạy lại raw data (metric mới đang
-  chờ rerun; PR-AUC cũ không còn là chuẩn). Giảm >10% tương đối → trigger retrain sớm.
+  chỉ biết sau khi outcome window mới kết thúc) mỗi quý, so với baseline đã rerun
+  trong `models/temporal_registry.json`: PR-AUC 0.750184, MAE £395.69 trên 5,281
+  khách hàng final test. Giảm >10% tương đối → trigger retrain sớm.
 
 ## 2. Retraining trigger & cadence
 

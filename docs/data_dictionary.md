@@ -33,15 +33,16 @@ vs outcome window) được thực hiện **trước**, sau đó mới loại ca
 và `tests/test_features.py` (có test leakage riêng cho `return_rate` và cho
 boundary ngày cuối mỗi window).
 
-The original source log reported 1,067,371 raw rows. New snapshot cleaning counts
-must be regenerated from the workbook; former 5,041-customer/window counts are
-superseded, not current temporal-test results.
+The real-data rerun contains **1,067,371 raw rows** and **34,335 exact duplicate
+rows beyond first**, retained (`outputs/data_quality.csv`). The final temporal-test
+population is **5,281 customers**, with **43.36%** repeat purchase. Former
+5,041-customer/window counts are superseded, not current evidence.
 
 1. Audit exact duplicates on the concatenated original rows, before type coercion:
    `raw.duplicated().sum()` counts repeats beyond the first occurrence.
    **Retain duplicates**: the source does not establish that identical lines are
    errors. Write count and policy to `outputs/data_quality.csv` and the step-02 log.
-   The actual count is pending raw-data execution, not assumed to be zero.
+   The observed duplicate count is 34,335; it is not assumed to be zero.
 2. Drop missing customer IDs globally (time-independent).
 3. At each snapshot, split time windows before computing cancellation rate.
 4. Separately remove C-prefixed invoices, Quantity <=0, and Price <=0 in each window.
@@ -68,7 +69,8 @@ attach the first observed purchase month, not proven lifetime acquisition.
   snapshot feature/label exports; label is `future_gross_sales` plus `repeat_purchase`.
 - `data/processed/customer_test_predictions.csv` — baseline final-test predictions only.
 - `data/processed/customer_test_predictions_advanced.csv` — optional GBM equivalent.
-- `data/processed/customer_test_scores.csv` — final-test policy deliverable.
+- `data/processed/customer_test_scores.csv` — **current final-test customer-level
+  evaluation deliverable**, 5,281 unique customers; explicitly allowed by `.gitignore`.
 - `data/processed/customer_scores.csv` — **legacy pre-remediation artifact**, never
   consumed for corrected evaluation. See `outputs/RESULTS_STATUS.md`.
 
@@ -114,5 +116,27 @@ final-test population, maximum capacity K=min(floor(budget/contact cost), popula
 scenario assumptions and per-contact cost. Random/RFM use K contacts; proposed uses
 only positive NET contributions up to K, possibly zero. Rows report actual contacts,
 actual contact cost, before-contact margin, NET margin, NET margin/contact (0 by
-convention for zero contacts), and simulated difference versus the seeded
-non-targeted baseline. These are simulated, not observed effects.
+convention for zero contacts), and simulated difference versus the Monte Carlo
+non-targeted mean. `no_promotion` explicitly has zero contacts, cost and margin.
+`simulated_margin_vs_no_promotion` equals simulated NET margin because that reference
+is zero. These are simulated, not observed effects.
+
+### Decision-analysis and provenance outputs
+
+- `random_mean_net_margin`, `random_p025_net_margin`, `random_p975_net_margin`:
+  Monte Carlo summary for non-targeted rows; blank for deterministic policies.
+  `random_policy_simulations`=1,000 and `random_policy_sample_size`=K=1,500.
+  `interval_type` identifies a random-policy simulation interval, not causal CI.
+- `outputs/break_even_by_segment.csv` / `break_even_summary.csv`: scenario/segment
+  customer counts, valid positive-value count, eligibility share, p25/median/p75 of
+  required base growth and maximum discount. Rates are fractions, not percentages.
+  Undefined cases (`v<=0`, `g<=d` for growth, zero multiplier) return NaN, excluded
+  from quantiles; eligibility shares retain the full group denominator. A negative
+  supportable discount means no nonnegative discount breaks even at that growth.
+- `outputs/response_discount_surface.csv`: 20 exploratory cells with discounts
+  0.05/0.10/0.15/0.20 and base growth 0.10/0.20/0.30/0.40/0.50. Each records eligible
+  and targeted counts, cost, NET margin and difference vs No Promotion. All use the
+  final-test population and `analysis_type=scenario_based_non_causal`.
+- `outputs/run_manifest.json`: generated/validated by final QA from actual raw,
+  configuration and requirements file bytes (SHA-256), plus run timestamp, Git
+  commit/dirty flag, Python/platform, test date, horizon, source and counts.

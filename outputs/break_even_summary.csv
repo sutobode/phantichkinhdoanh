@@ -1,0 +1,4 @@
+scenario,segment,analysis_type,decision_date,discount_pct,response_rate,gross_margin_pct,contact_cost_per_customer,customers,valid_break_even_customers,customers_eligible,eligible_share,required_base_response_p25,required_base_response_median,required_base_response_p75,maximum_discount_p25,maximum_discount_median,maximum_discount_p75
+conservative,all,scenario_based_non_causal,2011-09-10,0.05,0.1,0.4,0.5,5281,3698,0,0.0,0.14943408011708043,0.28745647234615523,0.2957342389707086,0.01713811081132796,0.018648318230985117,0.03412005776739421
+moderate,all,scenario_based_non_causal,2011-09-10,0.1,0.2,0.4,0.5,5281,3698,0,0.0,0.3402438471664025,0.6683758378910614,0.6778930308557964,0.034739032479222304,0.03607555769054005,0.0648050178660441
+aggressive,all,scenario_based_non_causal,2011-09-10,0.2,0.35,0.4,0.5,5281,3698,0,0.0,1.0097910074414806,2.002472642252094,2.016625923069947,0.05809739256550714,0.05932629929421013,0.10217437168942191

@@ -84,7 +84,9 @@ def test_assign_recommendation_logic():
 
 @pytest.fixture
 def config():
-    return deepcopy(load_config())
+    cfg = deepcopy(load_config())
+    cfg["decision"]["random_policy_simulations"] = 40
+    return cfg
 
 
 @pytest.fixture
@@ -140,11 +142,14 @@ def test_three_scenarios_baselines_use_capacity_when_proposed_abstains(final_sco
     config["decision"]["budget_total"] = budget
     table = decision.build_scenario_table(final_scores, config)
     assert set(table["scenario"]) == {"conservative", "moderate", "aggressive"}
-    assert len(table) == 9
+    assert len(table) == 12
     pd.testing.assert_frame_equal(table, decision.build_scenario_table(final_scores.sample(frac=1, random_state=7), config))
     assert table["campaign_capacity"].eq(capacity).all()
     proposed = table[table.policy == "proposed"]
-    baselines = table[table.policy != "proposed"]
+    baselines = table[table.policy.isin(["non_targeted", "rfm"])]
+    no_promotion = table[table.policy == "no_promotion"]
+    assert no_promotion[["customers_targeted", "campaign_contact_cost", "simulated_net_incremental_margin",
+                         "simulated_margin_vs_no_promotion"]].eq(0).all().all()
     assert proposed["customers_targeted"].eq(0).all()
     assert proposed["campaign_contact_cost"].eq(0).all()
     assert proposed["simulated_net_incremental_margin"].eq(0).all()
@@ -182,6 +187,7 @@ def test_fair_comparison_nonzero_capacity_and_determinism(final_scores, config):
     shuffled = final_scores.sample(frac=1, random_state=7)
     pd.testing.assert_frame_equal(table, decision.build_scenario_table(shuffled, config))
     for _, policies in table.groupby("scenario"):
+        policies = policies[policies.policy != "no_promotion"]
         assert policies["customers_targeted"].eq(2).all()
         assert policies["campaign_capacity"].eq(2).all()
         assert policies["campaign_contact_cost"].eq(1.0).all()
@@ -194,3 +200,77 @@ def test_sensitivity_reversed_impact_bar():
     left, width = decision.tornado_bar_bounds([100, 10], [10, 100], 50)
     np.testing.assert_array_equal(left, [-40, -40])
     np.testing.assert_array_equal(width, [90, 90])
+
+
+def test_monte_carlo_deterministic_capacity_and_interval(final_scores, config):
+    values = np.array([-100., -20., -10., 0., 5., 30.])
+    result = decision.monte_carlo_random_policy(values, 3, 1000, 42)
+    assert result == decision.monte_carlo_random_policy(values, 3, 1000, 42)
+    assert result["random_policy_sample_size"] == 3
+    assert result["random_policy_simulations"] == 1000
+    assert np.isfinite(list(result.values())).all()
+    assert result["random_p025_net_margin"] <= result["random_mean_net_margin"] <= result["random_p975_net_margin"]
+    # Exactly K distinct contacts on every draw, including the full-population case.
+    constant = decision.monte_carlo_random_policy(np.ones(6), 3, 30, 42)
+    assert constant["random_mean_net_margin"] == constant["random_p025_net_margin"] == constant["random_p975_net_margin"] == 3
+    full = decision.monte_carlo_random_policy(values, 6, 30, 42)
+    assert full["random_mean_net_margin"] == full["random_p025_net_margin"] == full["random_p975_net_margin"] == values.sum()
+    config["decision"]["budget_total"] = 1.5
+    table = decision.build_scenario_table(final_scores, config)
+    row = table[(table.scenario == "moderate") & (table.policy == "non_targeted")].iloc[0]
+    prepared = decision.prepare_scores(final_scores, config)
+    growth = decision.effective_response_rate(prepared, .2, config["decision"]["segment_response_multiplier"])
+    net = decision.incremental_margin(prepared[decision.VALUE_COL], growth, .1, .4, .5)
+    expected = decision.monte_carlo_random_policy(net, 3, 40, 42)
+    assert row["simulated_net_incremental_margin"] == expected["random_mean_net_margin"]
+    assert row["interval_type"] == "random_policy_simulation_not_causal_CI"
+
+
+def test_break_even_equations_and_invalid_domains():
+    values = pd.Series([10., 100., 1000.])
+    required = decision.break_even_effective_growth(values, .4, .1, .5)
+    np.testing.assert_allclose(decision.incremental_margin(values, pd.Series(required), .1, .4, .5), 0, atol=1e-12)
+    discount = decision.break_even_discount(values, .4, .5, .5)
+    np.testing.assert_allclose(decision.incremental_margin(values, pd.Series([.5]*3), discount, .4, .5), 0, atol=1e-12)
+    np.testing.assert_allclose(decision.break_even_base_response(required, 1.3) * 1.3, required)
+    assert np.isnan(decision.break_even_effective_growth([0, -1, 100], .4, [.1, .1, .4], .5)).all()
+    assert np.isnan(decision.break_even_effective_growth(100, .4, .5, .5))
+    assert np.isnan(decision.break_even_base_response(required, 0)).all()
+    assert np.isnan(decision.break_even_discount([0, 100], .4, [.5, -1], .5)).all()
+
+
+def test_decision_surface_dimensions_labels_and_reference(final_scores, config):
+    surface = decision.response_discount_surface(final_scores, config)
+    grid = config["decision"]["sensitivity_grid"]
+    assert len(surface) == len(grid["discount_pct"]) * len(grid["response_rate"])
+    assert not surface.duplicated(["discount_pct", "response_rate"]).any()
+    assert surface["analysis_type"].eq("scenario_based_non_causal").all()
+    assert surface["evaluation_population"].eq("final_temporal_test").all()
+    assert surface["simulated_net_incremental_margin"].equals(surface["simulated_margin_vs_no_promotion"])
+    assert (surface["customers_targeted"] <= surface["campaign_capacity"]).all()
+    reference = surface[(surface.discount_pct == .1) & (surface.response_rate == .2)].iloc[0]
+    assert reference["customers_targeted"] == 0
+    assert reference["simulated_net_incremental_margin"] == 0
+    segment, summary = decision.build_break_even_tables(final_scores, config)
+    assert len(segment) == 12 and len(summary) == 3
+    assert summary["customers"].eq(len(final_scores)).all()
+    assert summary["valid_break_even_customers"].eq(4).all()  # two nonpositive values
+
+
+def test_manifest_hashes_stable_and_sensitive_to_input_changes(final_scores, config, tmp_path):
+    from utils import build_run_manifest
+    raw_file, config_file = tmp_path / "raw.xlsx", tmp_path / "params.yaml"
+    raw_file.write_bytes(b"synthetic test input, not real workbook")
+    config_file.write_bytes(b"seed: 42\n")
+    first = build_run_manifest(config, raw_file, config_file, 10, final_scores)
+    second = build_run_manifest(config, raw_file, config_file, 10, final_scores)
+    for field in ("raw_data_sha256", "config_sha256"):
+        assert first[field] == second[field]
+        assert len(first[field]) == 64
+    assert first["final_test_customers"] == 6 and first["raw_rows"] == 10
+    assert first["python_version"].startswith("3.11.")
+    assert first["git_commit"] and first["run_timestamp"]
+    raw_file.write_bytes(b"changed input")
+    changed = build_run_manifest(config, raw_file, config_file, 10, final_scores)
+    assert changed["raw_data_sha256"] != first["raw_data_sha256"]
+    assert changed["config_sha256"] == first["config_sha256"]

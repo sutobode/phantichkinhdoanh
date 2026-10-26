@@ -66,3 +66,8 @@ decision:
   # Same K=min(floor(budget/contact cost), population): Random/RFM use K; proposed uses <=K.
   contact_cost_per_customer: 0.50
   budget_total: 750.0
+  # Exploratory analysis settings; original scenarios and economic assumptions stay fixed.
+  random_policy_simulations: 1000
+  sensitivity_grid:
+    discount_pct: [0.05, 0.10, 0.15, 0.20]
+    response_rate: [0.10, 0.20, 0.30, 0.40, 0.50]

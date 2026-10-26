@@ -6,8 +6,12 @@ mọi nơi đọc tham số từ cùng một config/params.yaml (single source o
 from __future__ import annotations
 
 import logging
+import hashlib
+import platform
 import random
+import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -102,3 +106,31 @@ def validate_final_test_predictions(df, config: dict) -> None:
             or not pd.to_datetime(df["outcome_end_exclusive"]).eq(end).all()
             or not pd.to_datetime(df["training_outcome_end_exclusive"]).lt(decision).all()):
         raise ValueError("Policy evaluation requires only out-of-sample final temporal-test predictions")
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def build_run_manifest(config: dict, raw_file: Path, config_file: Path, raw_rows: int,
+                       scores, requirements_file: Path | None = None) -> dict:
+    """Small run evidence record; hashes are of actual file bytes, never constants."""
+    validate_final_test_predictions(scores, config)
+    manifest = {
+        "run_timestamp": datetime.now(timezone.utc).isoformat(),
+        "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, text=True).strip(),
+        "git_worktree_dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=PROJECT_ROOT, text=True).strip()),
+        "python_version": platform.python_version(), "platform": platform.platform(),
+        "raw_data_sha256": sha256_file(raw_file), "config_sha256": sha256_file(config_file),
+        "final_test_decision_date": config["validation"]["final_test_decision_date"],
+        "outcome_horizon_days": config["validation"]["outcome_horizon_days"],
+        "value_prediction_source": config["decision"]["value_prediction_source"],
+        "raw_rows": int(raw_rows), "final_test_customers": int(scores["Customer ID"].nunique()),
+    }
+    if requirements_file is not None:
+        manifest["requirements_sha256"] = sha256_file(requirements_file)
+    return manifest

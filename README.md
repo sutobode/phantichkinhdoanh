@@ -3,10 +3,12 @@
 Capstone project — HUST Business Analytics 2026. Chi tiết yêu cầu: `phantichkinhdoanh.pdf`.
 `PLAN.md` is the archived pre-remediation work log, not current validation evidence.
 
-**Result status:** corrected UCI metrics are pending a raw-data rerun. Existing
-`customer_scores.csv`, `models/registry.json`, and old generated figures/tables
-are superseded; see `outputs/RESULTS_STATUS.md`. The corrected pipeline and dashboard
-never fall back to the old mixed-sample scores.
+**Current evidence:** the real UCI baseline rerun evaluates **5,281 customers** at
+2011-09-10 with a **43.36%** repeat-purchase rate. The current customer-level artifact
+is `data/processed/customer_test_scores.csv`, explicitly allowed by `.gitignore`.
+Legacy `customer_scores.csv` and `models/registry.json` are not current evidence;
+see `outputs/RESULTS_STATUS.md`. No large intermediate processed tables are required
+in Git.
 
 ## Business question
 
@@ -75,10 +77,44 @@ python src/06_final_qa.py             # reruns 02→03→05 + tests/invariants;
   not response probability. Fixed unit COGS gives NET margin
   `v*((1+r)*(g-d)-g) - contact_cost`. Every promotion effect is simulated/non-causal.
 - Policies share K=min(floor(contact budget/contact cost), final-test population).
-  Seeded random and RFM contact K customers; proposed selects positive NET
+  Monte Carlo non-targeted campaigns and RFM contact K customers; proposed selects positive NET
   contributions up to K and may abstain. Under the unchanged three scenarios,
   proposed contacts zero (£0 spending/NET change), while Random/RFM use K and
-  incur simulated losses when K>0. Exact baseline totals need the UCI rerun.
+  incur simulated losses when K>0. **No Promotion = £0** is the explicit decision
+  reference, not a predictive model.
+
+### Verified real-data baseline and business results
+
+Source: `models/temporal_registry.json`, `outputs/data_quality.csv`, and
+`outputs/scenario_table.csv`. Raw rows: **1,067,371**; exact duplicate rows beyond
+first: **34,335**, retained under the documented policy.
+
+| Final-test model | PR-AUC (average precision) | ROC-AUC | MAE | RMSE |
+|---|---:|---:|---:|---:|
+| Logistic Regression | 0.750184 | 0.789977 | — | — |
+| Linear Regression, clipped | — | — | £395.69 | £2,016.14 |
+| Naive | 0.433630 | — | £636.34 | £3,288.87 |
+
+Non-targeted now reports **1,000 uniform K-customer campaigns, seed 42**, rather
+than the former single seeded draw. Each draw selects 1,500 distinct customers.
+The interval is the 2.5th–97.5th percentile of random-policy outcomes conditional
+on forecasts/assumptions, **not a causal confidence interval**.
+
+| Scenario | Non-targeted MC mean NET | Random-policy interval | RFM NET | Proposed / No Promotion |
+|---|---:|---|---:|---:|
+| Conservative | -£17,417.59 | [-£21,707.94, -£14,023.76] | -£55,333.45 | £0 / £0 |
+| Moderate | -£37,407.57 | [-£46,583.42, -£30,081.21] | -£118,314.35 | £0 / £0 |
+| Aggressive | -£90,677.15 | [-£112,076.51, -£73,360.59] | -£277,865.97 | £0 / £0 |
+
+Random/RFM spend £750 each; Proposed and No Promotion contact zero and spend £0.
+All totals are simulated NET changes, not measured promotion effects.
+
+Decision gate: among positive-value At-risk customers, median required base growth
+at 10% discount is **26.75%** (versus the assumed 20%); median maximum supportable
+discount at 20% base growth is **7.91%**. On the exploratory grid, positive campaigns
+first appear at 5% discount/20% growth (£7,175.92), 10%/30% (£1,424.27), and
+15%/50% (£962.39); none at 20% discount through 50% growth. These are tested grid
+points, not an empirically established continuous frontier. Main assumptions remain unchanged.
 
 ### Expected corrected outputs
 
@@ -89,15 +125,23 @@ python src/06_final_qa.py             # reruns 02→03→05 + tests/invariants;
   decision date, scenario, contact cost and rank; not a current deployment list.
 - `models/temporal_registry.json`: validation/final-test model metrics.
 - `outputs/data_quality.csv`, `temporal_schedule.csv`, `temporal_calibration_logreg.csv`.
-- `outputs/scenario_table.csv`: three scenarios × random/RFM/proposed policies,
+- `outputs/scenario_table.csv`: three scenarios × No Promotion/non-targeted MC/RFM/proposed,
   actual contacts, contact costs, before-contact margin, NET margin and policy differences.
 - `outputs/tornado_sensitivity.csv` and figure: budget-constrained NET sensitivity.
+- `outputs/break_even_by_segment.csv`, `break_even_summary.csv`: required-growth
+  and supportable-discount quartiles; invalid/zero-value cases are excluded from
+  quantiles but retained in eligibility denominators.
+- `outputs/response_discount_surface.csv`, `outputs/figures/response_discount_surface.png`:
+  4 discounts × 5 growth assumptions, eligibility, selection and NET margin vs No Promotion.
+- `outputs/run_manifest.json`: QA-generated timestamp, Git commit/dirty flag, Python,
+  raw/config/requirements SHA-256 hashes, temporal design/source, and row/customer counts.
 - Optional step 04: `outputs/temporal_model_comparison.csv`, `temporal_*` diagnostics,
   `outputs/figures/temporal_calibration_curve.png`, and `models/gbm_*.joblib`.
 
 Run 02/03/05 after changing the analytical configuration. Legacy generated files
-are not corrected results merely because they exist. Missing workbook/dependencies
-block a full rerun; synthetic tests are not substitutes for UCI metrics.
+are not corrected results merely because they exist. Run final QA to regenerate and
+hash-validate the manifest. Unchanged raw/config bytes reproduce the same hashes;
+timestamps and Git state may differ. Synthetic tests are not substitutes for UCI metrics.
 
 ## Dashboard
 
@@ -109,6 +153,10 @@ Dashboard tương tác: 5 KPI quyết định, filter theo quốc gia/segment/
 recommendation, so sánh scenario, cohort retention heatmap, và actionable
 view (final-test evaluation list, downloadable CSV). It requires corrected outputs,
 works with baseline alone, and displays simulated NET margin after contact cost.
+The Scenario Sandbox changes discount, assumed sales-volume growth, gross margin
+and contact budget in memory without retraining. Its five KPIs and downloadable
+target list apply to the explicitly labeled filtered population. Global saved
+comparisons and the cohort view remain unchanged. Inputs are exploratory and non-causal.
 The comparison uses equal maximum capacity K, not equal actual contact counts;
 Random/RFM use K even when proposed recommends no campaign.
 
@@ -133,6 +181,9 @@ curl -X POST http://localhost:8000/score -H "Content-Type: application/json" \
 
 ```bash
 python -m pytest tests/   # window/temporal/provenance/economics/idempotency tests
+python --version          # Python 3.11
+pip check                 # verify installed dependency compatibility
+git diff --check
 ```
 
 CI (`.github/workflows/ci.yml`) tự động chạy test này mỗi lần push.
