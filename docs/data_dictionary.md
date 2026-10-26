@@ -109,7 +109,10 @@ attach the first observed purchase month, not proven lifetime acquisition.
 - `target_rank`: descending positive-net-margin rank; blank when ineligible.
 - `targeted_under_budget_reference_scenario`: actual proposed-policy selection.
 
-`outputs/scenario_table.csv` has one row per scenario/policy: equal population,
-capacity, actual contacts, contact cost, before-contact margin, NET margin, NET
-margin/contact (0 by convention for zero contacts), and simulated difference
-versus the seeded non-targeted baseline. These are simulated, not observed effects.
+`outputs/scenario_table.csv` has one row per scenario/policy. Policies share the
+final-test population, maximum capacity K=min(floor(budget/contact cost), population),
+scenario assumptions and per-contact cost. Random/RFM use K contacts; proposed uses
+only positive NET contributions up to K, possibly zero. Rows report actual contacts,
+actual contact cost, before-contact margin, NET margin, NET margin/contact (0 by
+convention for zero contacts), and simulated difference versus the seeded
+non-targeted baseline. These are simulated, not observed effects.

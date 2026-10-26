@@ -133,5 +133,18 @@ def test_baseline_only_pipeline_reaches_policy_without_gbm(raw, config, tmp_path
     assert set(table["policy"]) == {"non_targeted", "rfm", "proposed"}
     assert (scores["baseline_future_revenue"] >= 0).all()
     # All original assumptions are unprofitable with unchanged unit COGS.
-    assert table["customers_targeted"].eq(0).all()
-    assert table["simulated_net_incremental_margin"].eq(0).all()
+    proposed = table[table.policy == "proposed"]
+    baselines = table[table.policy != "proposed"]
+    assert proposed["customers_targeted"].eq(0).all()
+    assert proposed["simulated_net_incremental_margin"].eq(0).all()
+    assert baselines["customers_targeted"].eq(len(scores)).all()
+    assert baselines["campaign_capacity"].eq(len(scores)).all()
+    assert baselines["simulated_net_incremental_margin"].lt(0).all()
+    # Final QA must accept K-contact baselines alongside a zero-contact proposal.
+    final = snapshots[snapshots["split"].eq("final_test")]
+    final.drop(columns=["future_gross_sales", "repeat_purchase"]).to_csv(tmp_path / "customer_features.csv", index=False)
+    final[["Customer ID", "future_gross_sales", "repeat_purchase"]].to_csv(tmp_path / "customer_labels.csv", index=False)
+    qa = import_module("06_final_qa")
+    monkeypatch.setattr(qa, "processed_path", lambda name, cfg: tmp_path / name)
+    monkeypatch.setattr(qa, "outputs_path", lambda name: tmp_path / name)
+    assert qa.check_invariants(config) == []

@@ -1,4 +1,10 @@
-scenario,discount_pct,response_rate_reference,gross_margin_pct,total_margin_non_targeted_blanket,total_margin_targeted_positive_only,n_customers_targeted_positive_only,total_margin_budget_constrained,n_customers_budget_constrained,uplift_vs_blanket
-conservative,0.05,0.1,0.4,9456.605284168612,14460.1610984613,2073,12659.07747947456,1500,5003.5558142926875
-moderate,0.1,0.2,0.4,8830.061008103406,26033.9267422282,2073,22787.07419946545,1500,17203.865734124793
-aggressive,0.2,0.35,0.4,-63005.074465666956,28976.68984690066,2073,25381.585469730468,1500,91981.76431256761
+scenario,policy,decision_date,prediction_source,evaluation_population,n_evaluation_customers,discount_pct,response_rate_reference,gross_margin_pct,campaign_budget,campaign_capacity,contact_cost_per_customer,customers_targeted,campaign_contact_cost,simulated_gross_incremental_margin,simulated_net_incremental_margin,net_margin_per_targeted_customer,simulated_margin_difference_vs_baseline
+conservative,non_targeted,2011-09-10,baseline,final_temporal_test,5281,0.05,0.1,0.4,750.0,1500,0.5,1500,750.0,-15076.26696440715,-15826.26696440715,-10.5508446429381,0.0
+conservative,rfm,2011-09-10,baseline,final_temporal_test,5281,0.05,0.1,0.4,750.0,1500,0.5,1500,750.0,-54583.4476775805,-55333.4476775805,-36.888965118387,-39507.18071317335
+conservative,proposed,2011-09-10,baseline,final_temporal_test,5281,0.05,0.1,0.4,750.0,1500,0.5,0,0.0,0.0,0.0,0.0,15826.26696440715
+moderate,non_targeted,2011-09-10,baseline,final_temporal_test,5281,0.1,0.2,0.4,750.0,1500,0.5,1500,750.0,-33240.67766917023,-33990.67766917023,-22.66045177944682,0.0
+moderate,rfm,2011-09-10,baseline,final_temporal_test,5281,0.1,0.2,0.4,750.0,1500,0.5,1500,750.0,-117564.34884401955,-118314.34884401955,-78.8762325626797,-84323.67117484933
+moderate,proposed,2011-09-10,baseline,final_temporal_test,5281,0.1,0.2,0.4,750.0,1500,0.5,0,0.0,0.0,0.0,0.0,33990.67766917023
+aggressive,non_targeted,2011-09-10,baseline,final_temporal_test,5281,0.2,0.35,0.4,750.0,1500,0.5,1500,750.0,-81922.07404012015,-82672.07404012015,-55.11471602674676,0.0
+aggressive,rfm,2011-09-10,baseline,final_temporal_test,5281,0.2,0.35,0.4,750.0,1500,0.5,1500,750.0,-277115.96513233206,-277865.96513233206,-185.24397675488805,-195193.8910922119
+aggressive,proposed,2011-09-10,baseline,final_temporal_test,5281,0.2,0.35,0.4,750.0,1500,0.5,0,0.0,0.0,0.0,0.0,82672.07404012015

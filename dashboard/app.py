@@ -90,8 +90,8 @@ st.divider()
 # --- Scenario comparison chart ---
 st.subheader("So sánh policy theo scenario (toàn bộ customer base, không áp filter)")
 st.caption("Non-targeted = seeded random; RFM = score/monetary ranking; proposed = positive net margin. "
-           "Same population, actual contact count, capacity and contact cost in each scenario. "
-           "Zero eligible customers means no campaign for all three policies.")
+           "Same final-test population, maximum capacity K, assumptions and per-contact cost. "
+           "Random/RFM contact K customers; proposed contacts only positive-NET-margin customers, up to K, possibly zero.")
 fig_scenario = px.bar(
     scenario_table, x="scenario", y="simulated_net_incremental_margin", color="policy", barmode="group",
     labels={"simulated_net_incremental_margin": "Simulated NET margin (£)", "scenario": "Scenario"},

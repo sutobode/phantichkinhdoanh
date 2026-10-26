@@ -63,6 +63,6 @@ decision:
     Lost: 0.4
 
   # campaign_budget = budget_total: CONTACT budget only. Discounts enter profit.
-  # All three policies use the same actual N <= floor(budget/contact cost).
+  # Same K=min(floor(budget/contact cost), population): Random/RFM use K; proposed uses <=K.
   contact_cost_per_customer: 0.50
   budget_total: 750.0

@@ -47,7 +47,9 @@ GBM is an optional, separately reported comparison; select the policy source bef
 inspecting final-test results. No current full-population demo scores enter metrics.
 
 Compare seeded random, RFM-ranked, and positive-NET-margin-ranked contacts with
-the same actual N and maximum capacity (floor(£750/£0.50) = 1,500).
+the same maximum capacity K=min(floor(£750/£0.50), evaluation population size).
+Random and RFM use K contacts; proposed selects positive NET contributions up to K,
+possibly zero. Population, scenario assumptions and per-contact cost are identical.
 Contact costs are deducted. With unchanged unit product costs:
 `net = max(predicted_gross_sales, 0) * ((1+r)*(g-d)-g) - contact_cost`.
 `r` means assumed proportional pre-discount sales-volume growth, not response

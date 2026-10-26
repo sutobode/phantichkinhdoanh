@@ -89,15 +89,20 @@ unprefixed diagnostic artifacts are historical only; see `outputs/RESULTS_STATUS
 
 Policies on the same final-test population: seeded random non-targeted, descending
 RFM sum (then monetary, then customer ID), and descending positive NET margin.
-All use the proposed policy's actual contact count N under the same maximum K.
-If no contribution is positive, N=0 for all policies. NET margin/contact is reported
-as 0 by convention in this no-campaign case. No full-blanket comparison is used.
+All share maximum K=min(floor(contact budget/contact cost), evaluation population).
+Random and RFM contact K customers regardless of proposed eligibility. Proposed
+selects only positive NET contributions, ranked descending, up to K and may select
+zero. Actual contact costs are deducted for each policy. NET margin/contact is
+reported as 0 by convention for a zero-contact policy. No over-budget blanket
+comparison is used.
 
 With the unchanged three scenarios, even the highest multiplier produces negative
 before-contact coefficients: -0.0045, -0.022, -0.109 respectively. Thus for **any
 nonnegative v**, all three proposed campaigns select zero customers, spend £0 and
-have £0 simulated NET change. Equal-N comparator totals/differences are also £0.
-This algebraic implication is not an empirically rerun UCI result and not evidence
+have £0 simulated NET change. Random/RFM still use K contacts and have negative
+simulated NET totals when K>0. The proposed-minus-random difference therefore
+shows the simulated value of abstaining; exact baseline totals require the final
+test predictions. This algebraic implication is not an empirically rerun UCI result and not evidence
 that promotion never works. Assumptions were not adjusted to manufacture profit.
 
 Sensitivity retains the four endpoint ranges: response 0.10–0.35, discount
@@ -128,4 +133,5 @@ widths. Margin bootstrap conditions on predictions/assumptions, not causal uncer
 Configuration: `config/params.yaml`. Baseline: 02 → 03 → 05; optional 04 runs after
 02 and before an advanced-source 05. Tests enforce boundaries, label availability,
 test-label independence, policy provenance, clipping, financial arithmetic, equal
-capacity, deterministic scenarios and tornado geometry. See README for commands.
+maximum capacity (not equal actual contact counts), deterministic scenarios and
+tornado geometry. See README for commands.

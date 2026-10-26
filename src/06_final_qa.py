@@ -105,11 +105,14 @@ def check_invariants(config: dict) -> list[str]:
     except (AssertionError, ValueError) as exc:
         issues.append(f"Scenario provenance/cost/capacity mismatch: {exc}")
     for _, policies in scenario_table.groupby("scenario"):
+        capacity_k = min(int(config["decision"]["budget_total"] // config["decision"]["contact_cost_per_customer"]), len(scores))
+        baselines = policies[policies["policy"].isin(["non_targeted", "rfm"])]
         if (set(policies["policy"]) != {"non_targeted", "rfm", "proposed"}
-                or policies["customers_targeted"].nunique() != 1
-                or policies["campaign_contact_cost"].nunique() != 1
+                or not policies["campaign_capacity"].eq(capacity_k).all()
+                or not baselines["customers_targeted"].eq(capacity_k).all()
+                or not policies["customers_targeted"].between(0, capacity_k).all()
                 or (policies["campaign_contact_cost"] > config["decision"]["budget_total"]).any()):
-            issues.append("Policy comparison must use equal actual contacts and budget")
+            issues.append("Policies must share maximum capacity; Random/RFM use K, Proposed uses at most K")
     return issues
 
 

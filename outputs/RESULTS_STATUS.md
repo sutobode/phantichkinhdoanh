@@ -33,6 +33,9 @@ writes separate advanced predictions and `temporal_*` diagnostics.
 The no-campaign conclusion for the unchanged three scenarios is an algebraic
 consequence of the corrected economics: all coefficients are negative before
 contact cost for every segment. Thus for any nonnegative revenue predictions,
-all equal-N policies contact zero and have £0 simulated NET change. This is not
-an empirically regenerated UCI campaign result. Corrected model accuracy, population
+the proposed policy contacts zero and has £0 simulated NET change. Random/RFM
+instead use K=min(floor(budget/contact cost), evaluation population) and incur
+simulated NET losses when K>0. Their exact totals and the simulated policy difference
+await final-test predictions. This is not an empirically regenerated UCI campaign
+result. Corrected model accuracy, population
 counts, duplicate count and sensitivity magnitudes remain pending.

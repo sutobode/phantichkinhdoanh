@@ -135,14 +135,42 @@ def test_contact_cost_deducted_from_fixed_unit_cost_margin():
     assert result.iloc[0] == pytest.approx(-40.5)
 
 
-def test_three_scenarios_and_equal_zero_contact_case(final_scores, config):
+@pytest.mark.parametrize("budget,capacity", [(750.0, 6), (1.0, 2), (0.0, 0)])
+def test_three_scenarios_baselines_use_capacity_when_proposed_abstains(final_scores, config, budget, capacity):
+    config["decision"]["budget_total"] = budget
     table = decision.build_scenario_table(final_scores, config)
     assert set(table["scenario"]) == {"conservative", "moderate", "aggressive"}
     assert len(table) == 9
-    assert table["customers_targeted"].eq(0).all()
-    assert table["campaign_contact_cost"].eq(0).all()
-    assert table["simulated_net_incremental_margin"].eq(0).all()
+    pd.testing.assert_frame_equal(table, decision.build_scenario_table(final_scores.sample(frac=1, random_state=7), config))
+    assert table["campaign_capacity"].eq(capacity).all()
+    proposed = table[table.policy == "proposed"]
+    baselines = table[table.policy != "proposed"]
+    assert proposed["customers_targeted"].eq(0).all()
+    assert proposed["campaign_contact_cost"].eq(0).all()
+    assert proposed["simulated_net_incremental_margin"].eq(0).all()
+    assert baselines["customers_targeted"].eq(capacity).all()
+    assert baselines["campaign_contact_cost"].eq(capacity * 0.5).all()
+    np.testing.assert_allclose(baselines["simulated_net_incremental_margin"],
+                               baselines["simulated_gross_incremental_margin"] - capacity * 0.5)
+    if capacity:
+        assert baselines["simulated_net_incremental_margin"].lt(0).all()
+        assert proposed["simulated_margin_difference_vs_baseline"].gt(0).all()
+        random_net = table[table.policy == "non_targeted"].set_index("scenario")["simulated_net_incremental_margin"]
+        np.testing.assert_allclose(proposed["simulated_margin_difference_vs_baseline"],
+                                   -proposed["scenario"].map(random_net))
     assert decision.bootstrap_margin_ci(np.array([]), 10, 42) == (0, 0, 0)
+
+
+def test_baselines_use_k_when_proposed_selects_fewer_positive_customers(final_scores, config):
+    config["decision"]["budget_total"] = 2.0  # K=4, only two positive contributions
+    prepared = decision.prepare_scores(final_scores, config)
+    net = pd.Series([-10.0, 2.0, -3.0, 5.0, 0.0, -1.0])
+    selected = decision.policy_selections(prepared, net, config)
+    assert selected["non_targeted"].sum() == 4
+    assert selected["rfm"].sum() == 4
+    assert selected["proposed"].sum() == 2
+    assert prepared.loc[selected["rfm"], "Customer ID"].tolist() == [1, 2, 3, 6]
+    assert prepared.loc[selected["proposed"], "Customer ID"].tolist() == [2, 4]
 
 
 def test_fair_comparison_nonzero_capacity_and_determinism(final_scores, config):

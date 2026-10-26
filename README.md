@@ -74,9 +74,11 @@ python src/06_final_qa.py             # reruns 02→03→05 + tests/invariants;
 - `response_rate` is assumed proportional pre-discount sales-volume growth,
   not response probability. Fixed unit COGS gives NET margin
   `v*((1+r)*(g-d)-g) - contact_cost`. Every promotion effect is simulated/non-causal.
-- Seeded random, RFM and proposed policies use the same actual N and contact budget.
-  The unchanged three scenarios imply no positive NET contributions: no promotions,
-  £0 contact spending and £0 NET change. This algebra is not a rerun UCI result.
+- Policies share K=min(floor(contact budget/contact cost), final-test population).
+  Seeded random and RFM contact K customers; proposed selects positive NET
+  contributions up to K and may abstain. Under the unchanged three scenarios,
+  proposed contacts zero (£0 spending/NET change), while Random/RFM use K and
+  incur simulated losses when K>0. Exact baseline totals need the UCI rerun.
 
 ### Expected corrected outputs
 
@@ -107,7 +109,8 @@ Dashboard tương tác: 5 KPI quyết định, filter theo quốc gia/segment/
 recommendation, so sánh scenario, cohort retention heatmap, và actionable
 view (final-test evaluation list, downloadable CSV). It requires corrected outputs,
 works with baseline alone, and displays simulated NET margin after contact cost.
-The scenario comparison uses equal N; zero eligible customers means no campaign.
+The comparison uses equal maximum capacity K, not equal actual contact counts;
+Random/RFM use K even when proposed recommends no campaign.
 
 ## Serving API (mô phỏng tích hợp production)
 

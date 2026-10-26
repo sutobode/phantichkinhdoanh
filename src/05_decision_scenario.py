@@ -18,7 +18,7 @@ Mô hình scenario (xem comment trong config/params.yaml để biết rationale)
   v_i = clipped predicted gross future sales under historical behavior.
   response_rate = assumed proportional pre-discount sales-volume growth, NOT
   response probability. Underlying unit product costs remain unchanged.
-  All reported policies use FINAL TEMPORAL TEST predictions and equal contact N.
+  All policies use FINAL TEMPORAL TEST predictions and the same maximum capacity K.
 
 Output:
   - outputs/scenario_table.csv
@@ -115,7 +115,7 @@ def build_scenario_table(df: pd.DataFrame, config: dict) -> pd.DataFrame:
                 "evaluation_population": "final_temporal_test", "n_evaluation_customers": len(df),
                 "discount_pct": scenario["discount_pct"], "response_rate_reference": scenario["response_rate"],
                 "gross_margin_pct": dec["gross_margin_pct"], "campaign_budget": dec["budget_total"],
-                "campaign_capacity": int(dec["budget_total"] // dec["contact_cost_per_customer"]),
+                "campaign_capacity": min(int(dec["budget_total"] // dec["contact_cost_per_customer"]), len(df)),
                 "contact_cost_per_customer": dec["contact_cost_per_customer"],
                 "customers_targeted": n, "campaign_contact_cost": n * dec["contact_cost_per_customer"],
                 "simulated_gross_incremental_margin": float(gross[selected].sum()),
@@ -129,11 +129,11 @@ def build_scenario_table(df: pd.DataFrame, config: dict) -> pd.DataFrame:
 def policy_selections(df: pd.DataFrame, net_margin: pd.Series, config: dict) -> dict:
     dec = config["decision"]
     proposed = budget_constrained_selection(net_margin, dec["budget_total"], dec["contact_cost_per_customer"])
-    n = int(proposed.sum())
-    # Equal actual N as well as equal maximum capacity, including the no-contact case.
-    random_ids = df.sample(n=n, random_state=config["seed"]).index
+    capacity_k = min(int(dec["budget_total"] // dec["contact_cost_per_customer"]), len(df))
+    # Baselines use available capacity; Proposed may abstain from unprofitable contacts.
+    random_ids = df.sample(n=capacity_k, random_state=config["seed"]).index
     rfm_ids = df.sort_values(["rfm_score", "monetary", "Customer ID"],
-                            ascending=[False, False, True], kind="stable").index[:n]
+                            ascending=[False, False, True], kind="stable").index[:capacity_k]
     return {"non_targeted": pd.Series(df.index.isin(random_ids), index=df.index),
             "rfm": pd.Series(df.index.isin(rfm_ids), index=df.index), "proposed": proposed}
 

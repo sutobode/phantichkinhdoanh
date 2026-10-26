@@ -44,8 +44,10 @@ in `outputs/RESULTS_STATUS.md`. No synthetic test metric is a capstone result.
   segment multipliers 0.5/1.0/1.3/0.4; contact cost £0.50.
 - **Conclusion:** the maximum pre-contact coefficient in each scenario is negative
   (-0.0045, -0.022, -0.109). Thus zero selected contacts, £0 contact cost and £0
-  simulated NET campaign change follow for any nonnegative predictions. This is
-  algebra under assumptions, not an observed UCI campaign result.
+  simulated NET campaign change follow for the proposed policy with any nonnegative
+  predictions. Random/RFM use capacity K and incur simulated losses when K>0;
+  their exact totals await final-test predictions. This is algebra under assumptions,
+  not an observed UCI campaign result.
 - **Tests:** known promoted-revenue/COGS accounting example, contact-cost deduction,
   negative forecast clipping and absence of sign-reversal recommendations.
 
@@ -53,15 +55,17 @@ in `outputs/RESULTS_STATUS.md`. No synthetic test metric is a capstone result.
 
 - **Implementation:** `policy_selections` and `build_scenario_table` compare seeded
   random, RFM score/monetary ranking, and descending positive NET contributions.
-- **Constraint:** same actual N <= floor(£750/£0.50)=1,500 for every policy within a
-  scenario. Random selection is seeded and customer order canonicalized.
+- **Constraint:** same maximum K=min(floor(£750/£0.50), final-test population size).
+  Random/RFM use K; proposed ranks positive NET contributions and uses at most K,
+  possibly zero. Actual contact cost is deducted separately. Random selection is
+  seeded and customer order canonicalized. All share scenario assumptions.
 - **Outputs:** `outputs/scenario_table.csv` (three scenarios × three policies),
   `data/processed/customer_test_scores.csv` (decision time/source/scenario,
   before-contact and NET contribution, cost, rank, action, selection).
 - **Actions:** positive net and value → nurture; positive-value Champions/Loyal
   with nonpositive net → retain; otherwise no-offer. No intervention effect is
   inferred from these labels.
-- **Dashboard:** `dashboard/app.py` accepts final-test scores only; shows equal-N
+- **Dashboard:** `dashboard/app.py` accepts final-test scores only; shows equal-maximum-capacity
   NET comparisons. Optional API in `src/serve.py` is explicitly deployment/demo,
   has no campaign-wide budget allocation, and never supplies evaluation metrics.
 

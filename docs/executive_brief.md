@@ -22,9 +22,11 @@ highest assumed-growth segment (At-risk), before-contact incremental margin is:
 
 Subtracting £0.50/contact makes every customer contribution negative when predicted
 revenue is nonnegative. Each proposed policy therefore contacts **0 customers**, costs
-**£0** and produces **£0 simulated NET change**. Equal-contact random and RFM
-comparators also contact zero; their differences are zero. These are consequences
-of the stated assumptions, not observed campaign results.
+**£0** and produces **£0 simulated NET change**. Random and RFM comparators still
+contact K customers using the available capacity and incur simulated NET losses
+when K>0. This exposes the simulated value of not running an unprofitable campaign.
+Exact baseline losses require the final-test predictions. These implications follow
+from the stated assumptions, not observed campaign results.
 
 The former positive-margin recommendations and customer counts are **superseded**.
 They used different economics and mixed in-sample predictions. Corrected UCI
@@ -40,9 +42,10 @@ positive campaign return is claimed here.
   consider non-discount relationship/service attention. Its benefit is not estimated.
 - **No-offer:** remaining customers; no discounted campaign recommended.
 
-Contact budget is **£750**, at **£0.50/customer**, maximum **1,500**. Comparisons use
-the same evaluation population, actual contact count, cost and assumptions:
-seeded random versus RFM ranking versus positive-NET-margin ranking.
+Contact budget is **£750**, at **£0.50/customer**:
+**K=min(1,500, final-test population size)**. Comparisons use the same population,
+maximum capacity K, per-contact cost and scenario assumptions. Seeded random and
+RFM ranking each use K; positive-NET-margin ranking can use fewer, including zero.
 
 ## Evidence and assumptions
 

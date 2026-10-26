@@ -9,7 +9,7 @@
    validation 2011-06-01, final test 2011-09-10 (`docs/model_card.md`).
 4. **Core insight** — Fixed unit costs and contact expenses make all three current
    scenarios unprofitable for every nonnegative value forecast: no-contact policy.
-   Equal-N random/RFM/proposed comparisons; all impacts simulated, not observed.
+   Same maximum K: Random/RFM use K; proposed may abstain. All impacts simulated, not observed.
    Only show regenerated artifacts; see `outputs/RESULTS_STATUS.md`.
 5. **Live demo** — `streamlit run dashboard/app.py`: filter theo segment,
    xem actionable view (danh sách khách hàng ưu tiên), tải CSV
