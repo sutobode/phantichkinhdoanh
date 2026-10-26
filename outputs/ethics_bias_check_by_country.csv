@@ -1,0 +1,3 @@
+country_group,n_customers,mean_abs_error,mean_predicted_proba,actual_repeat_purchase_rate,error_vs_overall_pct
+United Kingdom,939,0.3530740708132001,0.519335311101159,0.5058572949946751,0.6225021499440153
+"Other (small country, n<20)",70,0.32158899856709605,0.5512613588260091,0.44285714285714284,-8.350421697105869

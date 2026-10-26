@@ -1,0 +1,13 @@
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+outputs/logs/*
+!outputs/logs/.gitkeep
+models/*.pkl
+models/*.joblib
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
