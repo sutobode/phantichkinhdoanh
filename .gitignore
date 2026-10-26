@@ -2,6 +2,7 @@ data/raw/*
 !data/raw/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
+!data/processed/customer_scores.csv
 outputs/logs/*
 !outputs/logs/.gitkeep
 models/*.pkl

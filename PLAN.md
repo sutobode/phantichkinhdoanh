@@ -109,7 +109,7 @@ Rule tối thiểu trong đề chỉ là "ngưỡng pass". Để đạt điểm 
 - [x] Labels: repeat_purchase, future_value — chỉ từ outcome window
 - [x] Explicit leakage check — 6 unit test tự động (`tests/test_features.py`), bao gồm test khóa 2 bug đã fix ở trên
 - [x] Validation design: temporal holdout ở tầng nhãn (ghi rõ lý do random split cross-sectional không gây leakage trong comment code)
-- [x] `src/03_baseline_models.py` — RFM segmentation (Champions/Loyal/At-risk/Lost), Logistic Regression (PR-AUC 0.815), Linear Regression (MAE 582.2)
+- [x] `src/03_baseline_models.py` — RFM segmentation (Champions/Loyal/At-risk/Lost), Logistic Regression (PR-AUC 0.815), Linear Regression (MAE 593.3, RMSE 1,435.4)
 - [x] `docs/data_dictionary.md` hoàn thiện với số liệu cleaning thật theo từng window
 - [x] **`data/processed/customer_scores.csv`** — deliverable riêng biệt, cập nhật qua từng tuần (03→04→05)
 - [x] **[Điểm cao]** Naive baseline: PR-AUC 0.502, MAE 1,115.6 — xác nhận model thật sự học được (logistic 0.815 >> 0.502)
@@ -119,9 +119,9 @@ Rule tối thiểu trong đề chỉ là "ngưỡng pass". Để đạt điểm 
 
 ## TUẦN 3 — Advanced Model & Diagnostics
 
-- [x] Đánh giá baseline: PR-AUC 0.815 [0.785,0.847], ROC-AUC 0.804 [0.778,0.830], MAE 582.2 [487.9,696.1]
+- [x] Đánh giá baseline: PR-AUC 0.815 [0.785,0.847], ROC-AUC 0.804 [0.778,0.830], MAE/RMSE 593.3/1,435.4 — **đã bổ sung RMSE** (đề yêu cầu rõ "MAE/RMSE", ban đầu chỉ làm MAE, phát hiện thiếu khi tự-audit lại)
 - [x] Error analysis theo RFM segment (`outputs/error_by_segment.csv`) + theo quốc gia (`outputs/ethics_bias_check_by_country.csv`)
-- [x] `src/04_advanced_models.py`: GBM classifier (PR-AUC 0.820) + regressor (MAE 531.2) — nhỉnh hơn baseline, SHAP feature importance xuất ra `outputs/shap_feature_importance.csv`
+- [x] `src/04_advanced_models.py`: GBM classifier (PR-AUC 0.820, thắng rõ) + regressor (MAE 531.2 tốt hơn, nhưng **RMSE 2,048.1 kém hơn** Linear Regression do 1 outlier — điều tra nguyên nhân cụ thể, trình bày trung thực trong `docs/model_card.md` thay vì chỉ báo cáo metric có lợi)
 - [x] **[Điểm cao]** Rolling-origin validation: 3 cutoff (2011-01-31/03-31/06-30), GBM PR-AUC mean=0.714 std=0.035 — ổn định qua thời gian, `outputs/rolling_origin_validation.csv`
 - [x] **[Điểm cao]** Bootstrap CI cho mọi metric chính (1000 resample), `config/params.yaml::n_bootstrap`
 - [x] **[Điểm cao]** Calibration curve logistic vs GBM: `outputs/calibration_logreg.csv`, `calibration_gbm.csv`, chart `outputs/figures/calibration_curve.png`

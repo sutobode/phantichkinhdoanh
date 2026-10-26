@@ -50,6 +50,9 @@ lan cùng mức giảm giá).
 - Đã kiểm tra độ nhạy (sensitivity): kết quả nhạy nhất với **mức giảm giá**
   và **tỷ lệ phản hồi thực tế** — đây là 2 yếu tố nên verify sớm nhất bằng
   thử nghiệm thực tế.
+- Model dự báo giá trị khách hàng **kém chính xác hơn ở nhóm khách hàng chi
+  tiêu cực cao** (vd top 1% "whale customer") — nên review thủ công trước
+  khi áp dụng khuyến nghị cho nhóm này, không nên tự động hóa hoàn toàn.
 
 ## Đề xuất triển khai
 

@@ -26,6 +26,7 @@ from sklearn.metrics import (
     average_precision_score,
     mean_absolute_error,
     roc_auc_score,
+    root_mean_squared_error,
 )
 from sklearn.model_selection import train_test_split
 
@@ -131,8 +132,10 @@ def main() -> None:
     # --- Naive baseline ---
     naive_proba = np.full(len(test_df), train_df["repeat_purchase"].mean())
     naive_pr_auc = average_precision_score(test_df["repeat_purchase"], naive_proba)
-    naive_mae = mean_absolute_error(test_df["future_value"], np.full(len(test_df), train_df["future_value"].mean()))
-    logger.info("Naive baseline — PR-AUC: %.3f | MAE: %.2f", naive_pr_auc, naive_mae)
+    naive_pred = np.full(len(test_df), train_df["future_value"].mean())
+    naive_mae = mean_absolute_error(test_df["future_value"], naive_pred)
+    naive_rmse = root_mean_squared_error(test_df["future_value"], naive_pred)
+    logger.info("Naive baseline — PR-AUC: %.3f | MAE: %.2f | RMSE: %.2f", naive_pr_auc, naive_mae, naive_rmse)
 
     # --- Logistic regression: repeat_purchase ---
     clf = LogisticRegression(max_iter=1000, random_state=config["seed"])
@@ -158,7 +161,12 @@ def main() -> None:
         test_df["future_value"].to_numpy(), pred_value, mean_absolute_error,
         config["validation"]["n_bootstrap"], config["seed"],
     )
-    logger.info("Linear regression — MAE: %.2f [%.2f, %.2f]", mae, mae_lo, mae_hi)
+    rmse, rmse_lo, rmse_hi = bootstrap_ci(
+        test_df["future_value"].to_numpy(), pred_value, root_mean_squared_error,
+        config["validation"]["n_bootstrap"], config["seed"],
+    )
+    logger.info("Linear regression — MAE: %.2f [%.2f, %.2f] | RMSE: %.2f [%.2f, %.2f]",
+                mae, mae_lo, mae_hi, rmse, rmse_lo, rmse_hi)
 
     # --- Registry log ---
     run_id = f"baseline_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
@@ -169,9 +177,11 @@ def main() -> None:
         "metrics": {
             "naive_pr_auc": naive_pr_auc,
             "naive_mae": naive_mae,
+            "naive_rmse": naive_rmse,
             "logreg_pr_auc": [pr_auc, pr_lo, pr_hi],
             "logreg_roc_auc": [roc_auc, roc_lo, roc_hi],
             "linreg_mae": [mae, mae_lo, mae_hi],
+            "linreg_rmse": [rmse, rmse_lo, rmse_hi],
         },
     })
 

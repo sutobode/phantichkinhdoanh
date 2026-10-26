@@ -28,19 +28,47 @@ tenure_days, return_rate`.
 
 ## Models & kết quả (chạy thật trên Online Retail II, seed=42)
 
-| Model | Target | Metric | Giá trị (95% bootstrap CI) |
-|---|---|---|---|
-| Naive baseline | repeat_purchase | PR-AUC | 0.502 |
-| Naive baseline | future_value | MAE | 1,115.6 |
-| Logistic Regression | repeat_purchase | PR-AUC | 0.815 [0.785, 0.847] |
-| Logistic Regression | repeat_purchase | ROC-AUC | 0.804 [0.778, 0.830] |
-| Linear Regression | future_value | MAE | 582.2 [487.9, 696.1] |
-| **Gradient Boosting** | repeat_purchase | PR-AUC | **0.820 [0.787, 0.851]** |
-| **Gradient Boosting** | repeat_purchase | ROC-AUC | **0.806 [0.780, 0.832]** |
-| **Gradient Boosting** | future_value | MAE | **531.2 [432.8, 679.7]** |
+**Classification (`repeat_purchase`)**
 
-GBM được chọn làm model chính thức (nhỉnh hơn baseline, dùng cho
-`customer_scores.csv` và toàn bộ decision layer).
+| Model | PR-AUC | ROC-AUC |
+|---|---|---|
+| Naive baseline | 0.501 | — |
+| Logistic Regression | 0.815 [0.785, 0.847] | 0.804 [0.778, 0.830] |
+| **Gradient Boosting** | **0.820 [0.787, 0.851]** | **0.806 [0.780, 0.832]** |
+
+GBM thắng rõ ràng trên cả PR-AUC và ROC-AUC cho bài toán classification —
+được chọn làm model chính thức cho `predicted_repeat_purchase_proba`.
+
+**Regression (`future_value`)**
+
+| Model | MAE | RMSE |
+|---|---|---|
+| Naive baseline | 1,093.3 | 5,065.1 |
+| Linear Regression | 593.3 [521.1, 683.1] | **1,435.4 [985.9, 1,904.2]** |
+| Gradient Boosting | **531.2 [432.8, 679.7]** | 2,048.1 [835.6, 3,280.9] |
+
+⚠️ **Phát hiện quan trọng, không che giấu**: GBM có MAE tốt hơn (sai số
+*điển hình* thấp hơn) nhưng RMSE **tệ hơn** Linear Regression (sai số bị
+"phạt nặng" ở các giá trị ngoại lai). Điều tra cho thấy nguyên nhân: 1 khách
+hàng có `future_value` thực tế = £22,314 nhưng GBM dự đoán £78,682 (sai lệch
+£56,368) — một outlier duy nhất đủ để kéo RMSE của GBM lên cao, vì
+`future_value` có phân phối lệch phải cực mạnh (max=£144,204, median=£16.9,
+std=£5,067 trên tập test). Linear Regression ít "tự tin thái quá" hơn ở nhóm
+khách hàng giá trị cực cao nên RMSE ổn định hơn, dù MAE trung bình kém hơn
+đôi chút.
+
+**Quyết định**: vẫn dùng GBM cho `predicted_future_value_gbm` (feed vào
+`customer_scores.csv` và decision layer), vì:
+1. Quyết định kinh doanh dựa trên **tổng margin across nhiều khách hàng**
+   (xem `05_decision_scenario.py`), nơi sai số trung bình (MAE) ảnh hưởng
+   nhiều hơn 1 vài outlier riêng lẻ.
+2. Classification task (quan trọng hơn cho targeting rule) GBM thắng dứt
+   khoát.
+
+**Nhưng** — khuyến nghị vận hành: KHÔNG dùng `predicted_future_value_gbm`
+một cách mù quáng cho quyết định cá nhân hóa ở nhóm khách hàng giá trị cực
+cao (`monetary` top 1%) mà không review thủ công, vì đây chính là nhóm GBM
+có rủi ro dự đoán lệch lớn nhất.
 
 ### Rolling-origin validation (ổn định qua thời gian)
 

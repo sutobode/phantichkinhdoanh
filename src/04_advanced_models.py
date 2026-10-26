@@ -37,6 +37,7 @@ from sklearn.metrics import (
     average_precision_score,
     mean_absolute_error,
     roc_auc_score,
+    root_mean_squared_error,
 )
 from sklearn.model_selection import train_test_split
 
@@ -200,9 +201,13 @@ def main() -> None:
     mae_gbm, mae_lo, mae_hi = bootstrap_ci(
         test_df["future_value"].to_numpy(), pred_gbm_value, mean_absolute_error, n_boot, config["seed"]
     )
+    rmse_gbm, rmse_lo, rmse_hi = bootstrap_ci(
+        test_df["future_value"].to_numpy(), pred_gbm_value, root_mean_squared_error, n_boot, config["seed"]
+    )
     logger.info("GBM classifier — PR-AUC: %.3f [%.3f, %.3f] | ROC-AUC: %.3f [%.3f, %.3f]",
                 pr_auc_gbm, pr_lo, pr_hi, roc_auc_gbm, roc_lo, roc_hi)
-    logger.info("GBM regressor — MAE: %.2f [%.2f, %.2f]", mae_gbm, mae_lo, mae_hi)
+    logger.info("GBM regressor — MAE: %.2f [%.2f, %.2f] | RMSE: %.2f [%.2f, %.2f]",
+                mae_gbm, mae_lo, mae_hi, rmse_gbm, rmse_lo, rmse_hi)
 
     # --- Calibration: logistic vs GBM ---
     frac_pos_log, mean_pred_log = calibration_curve(test_df["repeat_purchase"], proba_logreg, n_bins=10)
@@ -304,6 +309,7 @@ def main() -> None:
             "gbm_pr_auc": [pr_auc_gbm, pr_lo, pr_hi],
             "gbm_roc_auc": [roc_auc_gbm, roc_lo, roc_hi],
             "gbm_mae": [mae_gbm, mae_lo, mae_hi],
+            "gbm_rmse": [rmse_gbm, rmse_lo, rmse_hi],
             "rolling_origin_pr_auc_logreg_mean_std": [
                 float(rolling_results["pr_auc_logreg"].mean()), float(rolling_results["pr_auc_logreg"].std())
             ],
