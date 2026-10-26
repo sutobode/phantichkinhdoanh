@@ -15,6 +15,11 @@ ROC-AUC **0.789977** (actual repeat rate **43.36%**; naive PR-AUC **0.433630**).
 Future-gross-sales MAE is **£395.69**, RMSE **£2,016.14**. These are temporal-test
 prediction metrics, not evidence that promotion causes additional sales.
 
+Advanced modeling strengthens but does not change the decision: GBM classification
+improves final-test PR-AUC to **0.769056**, while regression accuracy is temporally
+mixed across five secondary origins. The baseline remains the interpretable business
+reference; monitoring is more appropriate than changing promotion assumptions.
+
 ## Policy comparison — simulated NET margin
 
 | Scenario | Non-targeted mean | Random-policy 95% interval | RFM | Proposed / No Promotion |
@@ -66,3 +71,5 @@ Outliers, return exclusions, time drift and uncertain growth assumptions limit
 transfer to current customers. Detailed methodology and provenance are in the
 model card and `outputs/run_manifest.json`; the current evaluation score artifact
 is `data/processed/customer_test_scores.csv`.
+Removing 34,335 exact duplicate rows in a separate sensitivity leaves 5,281 customers
+and the same no-campaign recommendation; it does not establish that duplicates are errors.

@@ -1,0 +1,8 @@
+model,task,feature,mean_abs_attribution,method,sample_size
+gradient_boosting_classifier,classification,frequency,0.641238317650496,tree_shap,750
+gradient_boosting_classifier,classification,recency_days,0.5733937130105706,tree_shap,750
+gradient_boosting_classifier,classification,monetary,0.21544138203161836,tree_shap,750
+gradient_boosting_classifier,classification,tenure_days,0.189631230017082,tree_shap,750
+gradient_boosting_classifier,classification,avg_order_value,0.12150292111950785,tree_shap,750
+gradient_boosting_classifier,classification,n_distinct_products,0.040199117701400514,tree_shap,750
+gradient_boosting_classifier,classification,return_rate,0.009873906409549391,tree_shap,750

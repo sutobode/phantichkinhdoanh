@@ -131,10 +131,10 @@ fig_scenario = px.bar(
     labels={"simulated_net_incremental_margin": "Simulated NET margin (£)", "scenario": "Scenario"},
     title="Equal-capacity policy comparison — final temporal test",
 )
-st.plotly_chart(fig_scenario, use_container_width=True)
+st.plotly_chart(fig_scenario, width="stretch")
 st.dataframe(scenario_table[["scenario", "policy", "customers_targeted", "campaign_contact_cost",
                             "simulated_net_incremental_margin", "random_p025_net_margin", "random_p975_net_margin",
-                            "simulated_margin_vs_no_promotion"]], use_container_width=True)
+                             "simulated_margin_vs_no_promotion"]], width="stretch")
 
 col_a, col_b = st.columns(2)
 
@@ -145,14 +145,14 @@ with col_a:
     seg_counts = filtered["rfm_segment"].value_counts().reset_index()
     seg_counts.columns = ["segment", "count"]
     fig_seg = px.bar(seg_counts, x="segment", y="count", color="segment")
-    st.plotly_chart(fig_seg, use_container_width=True)
+    st.plotly_chart(fig_seg, width="stretch")
 
 with col_b:
     st.subheader("Sandbox recommendation theo Segment")
     cross = pd.crosstab(sandbox["rfm_segment"], sandbox["final_recommendation"]).reset_index()
     cross_long = cross.melt(id_vars="rfm_segment", var_name="recommendation", value_name="count")
     fig_rec = px.bar(cross_long, x="rfm_segment", y="count", color="recommendation", barmode="stack")
-    st.plotly_chart(fig_rec, use_container_width=True)
+    st.plotly_chart(fig_rec, width="stretch")
 
 st.divider()
 
@@ -164,7 +164,7 @@ fig_cohort = px.imshow(
     cohort_pivot, color_continuous_scale="Blues", aspect="auto",
     labels={"x": "Tháng kể từ acquisition", "y": "Cohort (tháng mua đầu)", "color": "Retention rate"},
 )
-st.plotly_chart(fig_cohort, use_container_width=True)
+st.plotly_chart(fig_cohort, width="stretch")
 
 st.divider()
 
@@ -183,7 +183,7 @@ display_cols = [
     "simulated_net_incremental_margin", "expected_contact_cost_if_targeted", "target_rank",
     "assumed_discount_pct", "assumed_base_sales_growth", "assumed_gross_margin_pct", "contact_budget",
 ]
-st.dataframe(priority_list[display_cols], use_container_width=True, height=400)
+st.dataframe(priority_list[display_cols], width="stretch", height=400)
 st.download_button(
     "Tải danh sách (CSV)",
     priority_list[display_cols].to_csv(index=False).encode("utf-8"),

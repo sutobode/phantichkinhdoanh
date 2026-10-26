@@ -1,0 +1,3 @@
+task,selected_model,validation_gain,primary_metric,threshold,guardrail_metric,guardrail_value,guardrail_threshold
+classification,gradient_boosting_classifier,0.023654431702365808,pr_auc_absolute_gain,0.01,brier_score_increase,-0.005498536029482609,0.005
+regression,gradient_boosting_regressor,0.05728908388640788,relative_mae_gain,0.05,p90_absolute_error_relative_increase,-0.10655468836162896,0.05

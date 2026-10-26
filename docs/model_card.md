@@ -36,12 +36,13 @@ Country and RFM are diagnostic/decision fields, not predictive inputs.
   Scaling is fitted only on training snapshots inside the model pipeline.
 - Required regressor: LinearRegression.
 - Naive comparators: historical training repeat rate / mean future gross sales.
-- Optional comparison: GradientBoostingClassifier and GradientBoostingRegressor,
-  sklearn defaults with seed=42. No advanced model is required for scenarios.
+- Phase 3 challengers: one `GradientBoostingClassifier` and one
+  `GradientBoostingRegressor`, sklearn defaults with seed=42. No grid search.
 - Regression evaluation and simulation use `max(prediction, 0)`. Raw predictions
   are retained separately for diagnostics; clipping prevents negative-value sign reversal.
-- No hyperparameter search. `decision.value_prediction_source` defaults to baseline
-  and must be fixed before inspecting final-test metrics. No automatic winner claim.
+- `decision.value_prediction_source` remains frozen at baseline for the Phase 1/2
+  business layer. Phase 3 model selection uses only validation results; final-test
+  performance cannot change the selection.
 
 ## Temporal validation
 
@@ -55,10 +56,10 @@ information. Final-test labels never enter fitting, scaling or selection.
 There is **no random same-snapshot customer holdout**. This replaces the old
 cross-sectional evaluation; old scores/intervals are not temporal-test evidence.
 
-Metrics: PR-AUC (average precision), ROC-AUC, MAE and RMSE; 1,000 seeded customer
-bootstrap resamples conditional on the fitted model. Calibration CSV is generated
-for the baseline. Optional step 04 retains comparative reliability plotting, SHAP,
-RFM-segment error analysis and country-group probability-error diagnostics.
+Baseline metrics use PR-AUC (average precision), ROC-AUC, MAE and RMSE with 1,000
+seeded customer bootstrap resamples conditional on the fitted model. Phase 3 adds
+Brier score, median/p90 absolute regression error, compact calibration diagnostics,
+Tree SHAP attribution and secondary rolling-origin evaluation.
 
 ## Current result status
 
@@ -73,7 +74,96 @@ first: **34,335**, retained. Synthetic tests validate mechanics separately.
 | Naive | 0.4336299943 | — | £636.3386447 | £3,288.8721982 |
 
 Source: `models/temporal_registry.json`; validation metrics and bootstrap intervals
-are stored separately there. No new advanced models are fitted in Phase 1 + Phase 2.
+are stored separately there.
+
+### Phase 3 advanced comparison and selection
+
+Selection rules were fixed in `config/params.yaml` before final-test comparison:
+
+- Classification: select GBM only if validation PR-AUC gains at least **0.01** and
+  Brier score does not worsen by more than **0.005**.
+- Regression: select GBM only if validation MAE improves by at least **5%** and
+  p90 absolute error does not worsen by more than **5%**.
+
+| Split / model pair | PR-AUC | ROC-AUC | Brier | MAE | RMSE | Median abs. error | P90 abs. error |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Validation baseline | 0.695268 | 0.806039 | 0.161353 | £294.53 | £1,030.92 | £112.47 | £616.99 |
+| Validation GBM | 0.718923 | 0.814990 | 0.155854 | £277.66 | £1,120.81 | £99.74 | £551.24 |
+| Final-test baseline | 0.750184 | 0.789977 | 0.199542 | £395.69 | £2,016.14 | £120.42 | £776.47 |
+| Final-test GBM | 0.769056 | 0.798659 | 0.199442 | £400.40 | £2,167.29 | £103.34 | £792.10 |
+
+The validation rule selects both GBM challengers: classifier PR-AUC gained 0.02365
+with lower Brier score; regressor MAE improved 5.73% and p90 error fell 10.66%.
+The final test supports the classifier choice, but GBM regression MAE/RMSE are worse
+than Linear Regression despite lower median error. This is temporal instability,
+not a reason to select retrospectively on final test. The interpretable baseline
+remains the primary reference and frozen business input; GBM is retained as the
+Phase 3 challenger, not promoted into policy calculations. The paired GBMs are also
+substantially more expensive to fit, while inference remains small for both.
+Exact timings are environment/run-dependent and remain in
+`outputs/temporal_model_comparison.csv` rather than being treated as stable metrics.
+
+### Calibration
+
+Phase 3 reports Brier score and ECE using ten equal-width probability bins; ECE is
+the customer-count-weighted absolute gap between mean predicted probability and
+observed positive rate in nonempty bins. A single sigmoid calibrator was tested.
+For validation, the base model fits the first train origin and the sigmoid fits the
+second; for final evaluation, the base fits both train origins and the sigmoid fits
+validation. Final-test labels are never used to fit or select calibration.
+
+Validation Brier changed from **0.161353** to **0.161257**, an improvement of only
+0.000096 versus the predeclared 0.002 requirement (PR-AUC 0.695511). Calibration
+was therefore **not retained**, regardless of its final-test Brier of 0.198787 versus
+0.199542 uncalibrated. Sources: `outputs/calibration_metrics.csv`,
+`outputs/calibration_table.csv`, `outputs/figures/temporal_calibration_curve.png`.
+
+### Predictive attribution
+
+Tree SHAP was computed for the advanced classifier on a deterministic seed-42 sample
+of 750 final-test customers. Top mean absolute attributions are frequency 0.6412,
+recency 0.5734, monetary 0.2154, tenure 0.1896 and average order value 0.1215.
+These explain predictive contribution in this fitted model; they do **not** identify
+causes, treatment effects or promotion response. Sources:
+`outputs/advanced_feature_importance.csv` and `outputs/figures/shap_summary.png`.
+
+### Secondary temporal robustness
+
+Five evaluation origins (2010-09-01 through 2011-09-10) use expanding prior
+snapshots whose 90-day labels end strictly before each origin. This analysis is
+secondary and does not replace the main schedule.
+
+| Model family | Mean PR-AUC (range) | Mean MAE (range) |
+|---|---:|---:|
+| Baseline | 0.7179 (0.6598–0.7879) | £517.79 (£335.03–£690.04) |
+| GBM | 0.7242 (0.6617–0.7897) | £514.06 (£302.21–£716.31) |
+
+GBM classification is higher at all five origins, but gains vary and are often
+small. Regression is mixed: GBM has lower MAE at two of five origins. Both families
+vary materially over time, with no monotonic decay; continued temporal monitoring
+is warranted. Source: `outputs/rolling_origin_metrics.csv` and
+`outputs/figures/rolling_origin_performance.png`.
+
+### Duplicate-policy robustness
+
+The primary analysis retains 34,335 exact duplicate rows beyond first because the
+source does not establish whether identical lines are errors or legitimate repeated
+line items. A secondary `drop_exact_duplicates` analysis removes them, leaving
+1,033,036 rows, while reusing the same temporal dates, baseline models and business
+assumptions. It writes only namespaced artifacts and does not replace primary outputs.
+
+| Duplicate policy | Final customers / repeat rate | PR-AUC | ROC-AUC | MAE | RMSE |
+|---|---:|---:|---:|---:|---:|
+| Retain (primary) | 5,281 / 43.36% | 0.750184 | 0.789977 | £395.69 | £2,016.14 |
+| Drop exact duplicates | 5,281 / 43.36% | 0.750191 | 0.789971 | £396.54 | £2,066.55 |
+
+Under duplicate removal, Proposed contacts/margin remain 0/£0 for Conservative,
+Moderate and Aggressive. Non-targeted Monte Carlo mean losses become £16,612.70,
+£35,638.18 and £86,340.30 respectively. The recommendation remains **do not launch
+the configured campaigns**. The conclusion is qualitatively stable, while regression
+RMSE changes quantitatively; this does not prove which duplicate policy is correct.
+Sources: `outputs/duplicate_robustness_summary.csv` and
+`outputs/duplicate_robustness_business_metrics.csv`.
 
 Corrected runs write `models/temporal_registry.json` (separate validation/final-test
 metrics), `outputs/temporal_model_comparison.csv` when advanced is run, and
@@ -167,7 +257,8 @@ decision KPIs. Saved global comparisons/cohorts are not changed by its controls.
   assumptions**, not causal uplift, true ROI or observed incremental profit.
 - Historical promotions may already affect sales; historical forecasts are not untreated outcomes.
 - Sales exclude returns/cancellations; duplicates are audited and retained, not
-  assumed erroneous. This may overstate economically realized revenue.
+  assumed erroneous. This may overstate economically realized revenue; the separate
+  removal sensitivity changes regression error but not the campaign decision.
 - Ninety-day value is not lifetime value. High spenders/outliers and time drift
   can materially affect predictions; clipping fixes domain, not calibration/accuracy.
 - RFM quartiles use only the current snapshot's known features, including its full
@@ -177,15 +268,18 @@ decision KPIs. Saved global comparisons/cohorts are not changed by its controls.
   They are descriptive error checks, not proof of fairness or absence of bias.
   Earlier country-error results are superseded and must be recomputed.
 - Customer bootstrap intervals do not capture time/regime/model-selection uncertainty.
-- Only one final temporal origin; no causal experiment or deployment validation.
+- One main final temporal origin plus five secondary robustness origins; neither is
+  a causal experiment or deployment validation.
 
 ## Reproducibility
 
-Configuration: `config/params.yaml`. Baseline: 02 → 03 → 05; optional 04 runs after
-02 and before an advanced-source 05. Tests enforce boundaries, label availability,
+Configuration: `config/params.yaml`. Baseline: 02 → 03 → 05; Phase 3 step 04 runs
+after 02/03 and remains independent of step 05. Secondary duplicate sensitivity is
+step 07 and never overwrites primary outputs. Tests enforce boundaries, label availability,
 test-label independence, policy provenance, clipping, financial arithmetic, equal
-maximum capacity (not equal actual contact counts), deterministic scenarios and
-tornado geometry. See README for commands.
+maximum capacity (not equal actual contact counts), deterministic scenarios,
+validation-only selection/calibration, rolling-origin provenance, deterministic
+attribution sampling and tornado geometry. See README for commands.
 Final QA generates and hash-validates `outputs/run_manifest.json`, recording actual
 raw/config/requirements SHA-256 hashes, Git commit and dirty state, Python/platform,
 timestamp, temporal design, prediction source, raw rows and final customer count.

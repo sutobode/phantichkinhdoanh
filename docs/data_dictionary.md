@@ -43,6 +43,9 @@ population is **5,281 customers**, with **43.36%** repeat purchase. Former
    **Retain duplicates**: the source does not establish that identical lines are
    errors. Write count and policy to `outputs/data_quality.csv` and the step-02 log.
    The observed duplicate count is 34,335; it is not assumed to be zero.
+   Phase 4 separately evaluates `drop_exact_duplicates` without replacing this
+   primary policy or overwriting primary artifacts. Removing repeats leaves
+   1,033,036 transaction rows; it is a sensitivity, not evidence that repeats are errors.
 2. Drop missing customer IDs globally (time-independent).
 3. At each snapshot, split time windows before computing cancellation rate.
 4. Separately remove C-prefixed invoices, Quantity <=0, and Price <=0 in each window.
@@ -140,3 +143,7 @@ is zero. These are simulated, not observed effects.
 - `outputs/run_manifest.json`: generated/validated by final QA from actual raw,
   configuration and requirements file bytes (SHA-256), plus run timestamp, Git
   commit/dirty flag, Python/platform, test date, horizon, source and counts.
+- `outputs/duplicate_robustness_summary.csv` and
+  `duplicate_robustness_business_metrics.csv`: namespaced retain-versus-drop
+  sensitivity with the same main dates, baseline models, scenarios and Monte Carlo
+  count. The final population remains 5,281 and the no-campaign conclusion is unchanged.

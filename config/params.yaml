@@ -14,10 +14,14 @@ windows:
   observation_start: "2009-12-01"
 
 cleaning:
+  exact_duplicate_policy: "retain"  # Primary analysis; Phase 4 sensitivity drops exact duplicates separately.
   drop_cancelled_invoices: true      # Invoice bắt đầu bằng "C"
   drop_missing_customer_id: true
   drop_non_positive_quantity: true
   drop_non_positive_price: true
+
+robustness:
+  duplicate_policy: "drop_exact_duplicates"
 
 validation:
   method: "expanding_temporal_snapshots"
@@ -31,6 +35,25 @@ validation:
 model:
   classification_target: "repeat_purchase"
   regression_target: "future_gross_sales"  # positive sales, NOT net returns/profit/CLV
+
+# Phase 3 benchmark settings. Selection is validation-only; the Phase 1/2
+# business source remains independently frozen under decision below.
+advanced_modeling:
+  classification_min_pr_auc_gain: 0.01
+  classification_max_brier_increase: 0.005
+  regression_min_relative_mae_gain: 0.05
+  regression_max_p90_error_increase: 0.05
+  calibration_min_brier_gain: 0.002
+  calibration_max_pr_auc_loss: 0.005
+  calibration_bins: 10
+  attribution_sample_size: 750
+  rolling_origin_dates:
+    - "2010-06-01"
+    - "2010-09-01"
+    - "2010-12-01"
+    - "2011-03-01"
+    - "2011-06-01"
+    - "2011-09-10"
 
 decision:
   value_prediction_source: "baseline"  # baseline or advanced; choose before final test

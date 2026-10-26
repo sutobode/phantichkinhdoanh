@@ -21,7 +21,7 @@ from utils import (PROJECT_ROOT, CONFIG_PATH, get_logger, load_config, outputs_p
 
 logger = get_logger("06_final_qa")
 
-STEPS = ["02_cleaning_features", "03_baseline_models", "05_decision_scenario"]
+STEPS = ["02_cleaning_features", "03_baseline_models", "05_decision_scenario", "07_duplicate_robustness"]
 
 
 def run_pipeline_from_scratch() -> list[str]:
@@ -146,6 +146,40 @@ def write_run_manifest(config: dict) -> None:
         raise ValueError("Run manifest failed round-trip/hash validation")
 
 
+def check_submission_artifacts(config: dict) -> list[str]:
+    """Compact final-package checks; detailed behavior remains covered by tests."""
+    issues = []
+    if config["cleaning"].get("exact_duplicate_policy") != "retain":
+        issues.append("Primary exact-duplicate policy must remain retain")
+    if config["decision"].get("value_prediction_source") != "baseline":
+        issues.append("Final business prediction source must remain baseline")
+    required = [
+        "scenario_table.csv", "break_even_summary.csv", "response_discount_surface.csv",
+        "temporal_model_comparison.csv", "model_selection.csv", "calibration_metrics.csv",
+        "rolling_origin_metrics.csv", "duplicate_robustness_summary.csv",
+        "duplicate_robustness_business_metrics.csv",
+    ]
+    missing = [name for name in required if not outputs_path(name).exists()]
+    if missing:
+        issues.append(f"Missing submission artifacts: {missing}")
+        return issues
+    summary = pd.read_csv(outputs_path("duplicate_robustness_summary.csv"))
+    business = pd.read_csv(outputs_path("duplicate_robustness_business_metrics.csv"))
+    expected_policies = {"retain", "drop_exact_duplicates"}
+    if (set(summary.get("duplicate_policy", [])) != expected_policies
+            or set(business.get("duplicate_policy", [])) != expected_policies):
+        issues.append("Duplicate robustness artifacts must clearly label both policies")
+    if (not summary.get("final_test_decision_date", pd.Series(dtype=str)).astype(str).eq(
+            config["validation"]["final_test_decision_date"]
+        ).all() or not summary.get("outcome_horizon_days", pd.Series(dtype=int)).eq(
+            config["validation"]["outcome_horizon_days"]
+        ).all()):
+        issues.append("Duplicate robustness temporal design must match the primary analysis")
+    if len(business) != 2 * len(config["decision"]["discount_response_scenarios"]):
+        issues.append("Duplicate robustness business artifact has unexpected scenario rows")
+    return issues
+
+
 def main() -> None:
     config = load_config()
 
@@ -156,7 +190,7 @@ def main() -> None:
     tests_passed = run_pytest()
 
     logger.info("=== BƯỚC 3: Kiểm tra invariants ===")
-    issues = check_invariants(config)
+    issues = check_invariants(config) + check_submission_artifacts(config)
     if tests_passed and not issues:
         write_run_manifest(config)
 

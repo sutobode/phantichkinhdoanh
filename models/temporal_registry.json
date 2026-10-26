@@ -226,5 +226,761 @@
         "n_evaluation": 5281
       }
     }
+  },
+  {
+    "run_id": "baseline_temporal_20261026T181351Z",
+    "git_commit": "334a105",
+    "validation": {
+      "method": "expanding_temporal_snapshots",
+      "train_decision_dates": [
+        "2010-12-01",
+        "2011-03-01"
+      ],
+      "validation_decision_date": "2011-06-01",
+      "final_test_decision_date": "2011-09-10",
+      "outcome_horizon_days": 90,
+      "n_bootstrap": 1000
+    },
+    "models": [
+      "naive",
+      "logistic_regression",
+      "linear_regression"
+    ],
+    "metrics": {
+      "validation": {
+        "pr_auc": [
+          0.6952684044539377,
+          0.670952220608613,
+          0.7176930898602101
+        ],
+        "roc_auc": [
+          0.8060389081112332,
+          0.7927541497228243,
+          0.8188549385450891
+        ],
+        "mae": [
+          294.5296603298128,
+          269.8017210231127,
+          324.40410630032534
+        ],
+        "rmse": [
+          1030.9185228564772,
+          735.3306097708335,
+          1352.3872386688283
+        ],
+        "naive_pr_auc": 0.32860328400567607,
+        "naive_mae": 513.0391173613045,
+        "naive_rmse": 2057.1200931316357,
+        "n_train": 8803,
+        "n_evaluation": 4933
+      },
+      "final_test": {
+        "pr_auc": [
+          0.7501843981461881,
+          0.7311897192590284,
+          0.7687970073565256
+        ],
+        "roc_auc": [
+          0.7899770636509237,
+          0.7776371408895678,
+          0.8020093431532789
+        ],
+        "mae": [
+          395.6872411622351,
+          350.8929116466427,
+          453.5255160545509
+        ],
+        "rmse": [
+          2016.1352841663168,
+          1188.642622179252,
+          2805.0318907421697
+        ],
+        "naive_pr_auc": 0.4336299943192577,
+        "naive_mae": 636.3386447495952,
+        "naive_rmse": 3288.87219822376,
+        "n_train": 13736,
+        "n_evaluation": 5281
+      }
+    }
+  },
+  {
+    "run_id": "advanced_temporal_20261026T181516Z",
+    "git_commit": "334a105",
+    "validation": {
+      "method": "expanding_temporal_snapshots",
+      "train_decision_dates": [
+        "2010-12-01",
+        "2011-03-01"
+      ],
+      "validation_decision_date": "2011-06-01",
+      "final_test_decision_date": "2011-09-10",
+      "outcome_horizon_days": 90,
+      "n_bootstrap": 1000
+    },
+    "models": [
+      "gradient_boosting_classifier",
+      "gradient_boosting_regressor"
+    ],
+    "metrics": [
+      {
+        "split": "validation",
+        "model": "baseline",
+        "classifier": "logistic_regression",
+        "regressor": "linear_regression",
+        "n_train": 8803,
+        "n_evaluation": 4933,
+        "pr_auc": 0.6952684044539377,
+        "roc_auc": 0.8060389081112332,
+        "brier_score": 0.16135282949721585,
+        "mae": 294.5296603298128,
+        "rmse": 1030.9185228564772,
+        "median_absolute_error": 112.47066079924855,
+        "p90_absolute_error": 616.9853254143895,
+        "fit_seconds": 0.05439040000055684,
+        "inference_ms_per_1000": 1.1990269612867936
+      },
+      {
+        "split": "validation",
+        "model": "advanced",
+        "classifier": "gradient_boosting_classifier",
+        "regressor": "gradient_boosting_regressor",
+        "n_train": 8803,
+        "n_evaluation": 4933,
+        "pr_auc": 0.7189228361563035,
+        "roc_auc": 0.814989591622038,
+        "brier_score": 0.15585429346773325,
+        "mae": 277.65632591214296,
+        "rmse": 1120.8058873581265,
+        "median_absolute_error": 99.74174605605228,
+        "p90_absolute_error": 551.242646341161,
+        "fit_seconds": 1.9176871000017854,
+        "inference_ms_per_1000": 2.117109263585584
+      },
+      {
+        "split": "final_test",
+        "model": "baseline",
+        "classifier": "logistic_regression",
+        "regressor": "linear_regression",
+        "n_train": 13736,
+        "n_evaluation": 5281,
+        "pr_auc": 0.7501843981461881,
+        "roc_auc": 0.7899770636509237,
+        "brier_score": 0.1995424373208011,
+        "mae": 395.6872411622351,
+        "rmse": 2016.1352841663168,
+        "median_absolute_error": 120.41900969464422,
+        "p90_absolute_error": 776.4740258244622,
+        "fit_seconds": 0.017879200000606943,
+        "inference_ms_per_1000": 0.5935618246494955
+      },
+      {
+        "split": "final_test",
+        "model": "advanced",
+        "classifier": "gradient_boosting_classifier",
+        "regressor": "gradient_boosting_regressor",
+        "n_train": 13736,
+        "n_evaluation": 5281,
+        "pr_auc": 0.7690564771414012,
+        "roc_auc": 0.7986593696664959,
+        "brier_score": 0.19944161206039787,
+        "mae": 400.39929339934844,
+        "rmse": 2167.291128161936,
+        "median_absolute_error": 103.34136891523524,
+        "p90_absolute_error": 792.1028955613918,
+        "fit_seconds": 2.9692585000011604,
+        "inference_ms_per_1000": 2.065517895064858
+      }
+    ],
+    "selection": [
+      {
+        "task": "classification",
+        "selected_model": "gradient_boosting_classifier",
+        "validation_gain": 0.023654431702365808,
+        "primary_metric": "pr_auc_absolute_gain",
+        "threshold": 0.01,
+        "guardrail_metric": "brier_score_increase",
+        "guardrail_value": -0.005498536029482609,
+        "guardrail_threshold": 0.005
+      },
+      {
+        "task": "regression",
+        "selected_model": "gradient_boosting_regressor",
+        "validation_gain": 0.05728908388640788,
+        "primary_metric": "relative_mae_gain",
+        "threshold": 0.05,
+        "guardrail_metric": "p90_absolute_error_relative_increase",
+        "guardrail_value": -0.10655468836162896,
+        "guardrail_threshold": 0.05
+      }
+    ],
+    "calibration_retained": false
+  },
+  {
+    "run_id": "baseline_temporal_20261026T181753Z",
+    "git_commit": "334a105",
+    "validation": {
+      "method": "expanding_temporal_snapshots",
+      "train_decision_dates": [
+        "2010-12-01",
+        "2011-03-01"
+      ],
+      "validation_decision_date": "2011-06-01",
+      "final_test_decision_date": "2011-09-10",
+      "outcome_horizon_days": 90,
+      "n_bootstrap": 1000
+    },
+    "models": [
+      "naive",
+      "logistic_regression",
+      "linear_regression"
+    ],
+    "metrics": {
+      "validation": {
+        "pr_auc": [
+          0.6952684044539377,
+          0.670952220608613,
+          0.7176930898602101
+        ],
+        "roc_auc": [
+          0.8060389081112332,
+          0.7927541497228243,
+          0.8188549385450891
+        ],
+        "mae": [
+          294.5296603298128,
+          269.8017210231127,
+          324.40410630032534
+        ],
+        "rmse": [
+          1030.9185228564772,
+          735.3306097708335,
+          1352.3872386688283
+        ],
+        "naive_pr_auc": 0.32860328400567607,
+        "naive_mae": 513.0391173613045,
+        "naive_rmse": 2057.1200931316357,
+        "n_train": 8803,
+        "n_evaluation": 4933
+      },
+      "final_test": {
+        "pr_auc": [
+          0.7501843981461881,
+          0.7311897192590284,
+          0.7687970073565256
+        ],
+        "roc_auc": [
+          0.7899770636509237,
+          0.7776371408895678,
+          0.8020093431532789
+        ],
+        "mae": [
+          395.6872411622351,
+          350.8929116466427,
+          453.5255160545509
+        ],
+        "rmse": [
+          2016.1352841663168,
+          1188.642622179252,
+          2805.0318907421697
+        ],
+        "naive_pr_auc": 0.4336299943192577,
+        "naive_mae": 636.3386447495952,
+        "naive_rmse": 3288.87219822376,
+        "n_train": 13736,
+        "n_evaluation": 5281
+      }
+    }
+  },
+  {
+    "run_id": "advanced_temporal_20261026T182001Z",
+    "git_commit": "334a105",
+    "validation": {
+      "method": "expanding_temporal_snapshots",
+      "train_decision_dates": [
+        "2010-12-01",
+        "2011-03-01"
+      ],
+      "validation_decision_date": "2011-06-01",
+      "final_test_decision_date": "2011-09-10",
+      "outcome_horizon_days": 90,
+      "n_bootstrap": 1000
+    },
+    "models": [
+      "gradient_boosting_classifier",
+      "gradient_boosting_regressor"
+    ],
+    "metrics": [
+      {
+        "split": "validation",
+        "model": "baseline",
+        "classifier": "logistic_regression",
+        "regressor": "linear_regression",
+        "n_train": 8803,
+        "n_evaluation": 4933,
+        "pr_auc": 0.6952684044539377,
+        "roc_auc": 0.8060389081112332,
+        "brier_score": 0.16135282949721585,
+        "mae": 294.5296603298128,
+        "rmse": 1030.9185228564772,
+        "median_absolute_error": 112.47066079924855,
+        "p90_absolute_error": 616.9853254143895,
+        "fit_seconds": 0.044725599997036625,
+        "inference_ms_per_1000": 0.6427326172481888
+      },
+      {
+        "split": "validation",
+        "model": "advanced",
+        "classifier": "gradient_boosting_classifier",
+        "regressor": "gradient_boosting_regressor",
+        "n_train": 8803,
+        "n_evaluation": 4933,
+        "pr_auc": 0.7189228361563035,
+        "roc_auc": 0.814989591622038,
+        "brier_score": 0.15585429346773325,
+        "mae": 277.65632591214296,
+        "rmse": 1120.8058873581265,
+        "median_absolute_error": 99.74174605605228,
+        "p90_absolute_error": 551.242646341161,
+        "fit_seconds": 1.8727813999939826,
+        "inference_ms_per_1000": 2.4259679709777715
+      },
+      {
+        "split": "final_test",
+        "model": "baseline",
+        "classifier": "logistic_regression",
+        "regressor": "linear_regression",
+        "n_train": 13736,
+        "n_evaluation": 5281,
+        "pr_auc": 0.7501843981461881,
+        "roc_auc": 0.7899770636509237,
+        "brier_score": 0.1995424373208011,
+        "mae": 395.6872411622351,
+        "rmse": 2016.1352841663168,
+        "median_absolute_error": 120.41900969464422,
+        "p90_absolute_error": 776.4740258244622,
+        "fit_seconds": 0.017730799998389557,
+        "inference_ms_per_1000": 0.6309221737296457
+      },
+      {
+        "split": "final_test",
+        "model": "advanced",
+        "classifier": "gradient_boosting_classifier",
+        "regressor": "gradient_boosting_regressor",
+        "n_train": 13736,
+        "n_evaluation": 5281,
+        "pr_auc": 0.7690564771414012,
+        "roc_auc": 0.7986593696664959,
+        "brier_score": 0.19944161206039787,
+        "mae": 400.39929339934844,
+        "rmse": 2167.291128161936,
+        "median_absolute_error": 103.34136891523524,
+        "p90_absolute_error": 792.1028955613918,
+        "fit_seconds": 2.932948199995735,
+        "inference_ms_per_1000": 2.043533420357839
+      }
+    ],
+    "selection": [
+      {
+        "task": "classification",
+        "selected_model": "gradient_boosting_classifier",
+        "validation_gain": 0.023654431702365808,
+        "primary_metric": "pr_auc_absolute_gain",
+        "threshold": 0.01,
+        "guardrail_metric": "brier_score_increase",
+        "guardrail_value": -0.005498536029482609,
+        "guardrail_threshold": 0.005
+      },
+      {
+        "task": "regression",
+        "selected_model": "gradient_boosting_regressor",
+        "validation_gain": 0.05728908388640788,
+        "primary_metric": "relative_mae_gain",
+        "threshold": 0.05,
+        "guardrail_metric": "p90_absolute_error_relative_increase",
+        "guardrail_value": -0.10655468836162896,
+        "guardrail_threshold": 0.05
+      }
+    ],
+    "calibration_retained": false
+  },
+  {
+    "run_id": "baseline_temporal_20261026T182126Z",
+    "git_commit": "334a105",
+    "validation": {
+      "method": "expanding_temporal_snapshots",
+      "train_decision_dates": [
+        "2010-12-01",
+        "2011-03-01"
+      ],
+      "validation_decision_date": "2011-06-01",
+      "final_test_decision_date": "2011-09-10",
+      "outcome_horizon_days": 90,
+      "n_bootstrap": 1000
+    },
+    "models": [
+      "naive",
+      "logistic_regression",
+      "linear_regression"
+    ],
+    "metrics": {
+      "validation": {
+        "pr_auc": [
+          0.6952684044539377,
+          0.670952220608613,
+          0.7176930898602101
+        ],
+        "roc_auc": [
+          0.8060389081112332,
+          0.7927541497228243,
+          0.8188549385450891
+        ],
+        "mae": [
+          294.5296603298128,
+          269.8017210231127,
+          324.40410630032534
+        ],
+        "rmse": [
+          1030.9185228564772,
+          735.3306097708335,
+          1352.3872386688283
+        ],
+        "naive_pr_auc": 0.32860328400567607,
+        "naive_mae": 513.0391173613045,
+        "naive_rmse": 2057.1200931316357,
+        "n_train": 8803,
+        "n_evaluation": 4933
+      },
+      "final_test": {
+        "pr_auc": [
+          0.7501843981461881,
+          0.7311897192590284,
+          0.7687970073565256
+        ],
+        "roc_auc": [
+          0.7899770636509237,
+          0.7776371408895678,
+          0.8020093431532789
+        ],
+        "mae": [
+          395.6872411622351,
+          350.8929116466427,
+          453.5255160545509
+        ],
+        "rmse": [
+          2016.1352841663168,
+          1188.642622179252,
+          2805.0318907421697
+        ],
+        "naive_pr_auc": 0.4336299943192577,
+        "naive_mae": 636.3386447495952,
+        "naive_rmse": 3288.87219822376,
+        "n_train": 13736,
+        "n_evaluation": 5281
+      }
+    }
+  },
+  {
+    "run_id": "baseline_temporal_20261026T190719Z",
+    "git_commit": "334a105",
+    "validation": {
+      "method": "expanding_temporal_snapshots",
+      "train_decision_dates": [
+        "2010-12-01",
+        "2011-03-01"
+      ],
+      "validation_decision_date": "2011-06-01",
+      "final_test_decision_date": "2011-09-10",
+      "outcome_horizon_days": 90,
+      "n_bootstrap": 1000
+    },
+    "models": [
+      "naive",
+      "logistic_regression",
+      "linear_regression"
+    ],
+    "metrics": {
+      "validation": {
+        "pr_auc": [
+          0.6952684044539377,
+          0.670952220608613,
+          0.7176930898602101
+        ],
+        "roc_auc": [
+          0.8060389081112332,
+          0.7927541497228243,
+          0.8188549385450891
+        ],
+        "mae": [
+          294.5296603298128,
+          269.8017210231127,
+          324.40410630032534
+        ],
+        "rmse": [
+          1030.9185228564772,
+          735.3306097708335,
+          1352.3872386688283
+        ],
+        "naive_pr_auc": 0.32860328400567607,
+        "naive_mae": 513.0391173613045,
+        "naive_rmse": 2057.1200931316357,
+        "n_train": 8803,
+        "n_evaluation": 4933
+      },
+      "final_test": {
+        "pr_auc": [
+          0.7501843981461881,
+          0.7311897192590284,
+          0.7687970073565256
+        ],
+        "roc_auc": [
+          0.7899770636509237,
+          0.7776371408895678,
+          0.8020093431532789
+        ],
+        "mae": [
+          395.6872411622351,
+          350.8929116466427,
+          453.5255160545509
+        ],
+        "rmse": [
+          2016.1352841663168,
+          1188.642622179252,
+          2805.0318907421697
+        ],
+        "naive_pr_auc": 0.4336299943192577,
+        "naive_mae": 636.3386447495952,
+        "naive_rmse": 3288.87219822376,
+        "n_train": 13736,
+        "n_evaluation": 5281
+      }
+    }
+  },
+  {
+    "run_id": "baseline_temporal_20261026T193726Z",
+    "git_commit": "334a105",
+    "validation": {
+      "method": "expanding_temporal_snapshots",
+      "train_decision_dates": [
+        "2010-12-01",
+        "2011-03-01"
+      ],
+      "validation_decision_date": "2011-06-01",
+      "final_test_decision_date": "2011-09-10",
+      "outcome_horizon_days": 90,
+      "n_bootstrap": 1000
+    },
+    "models": [
+      "naive",
+      "logistic_regression",
+      "linear_regression"
+    ],
+    "metrics": {
+      "validation": {
+        "pr_auc": [
+          0.6952684044539377,
+          0.670952220608613,
+          0.7176930898602101
+        ],
+        "roc_auc": [
+          0.8060389081112332,
+          0.7927541497228243,
+          0.8188549385450891
+        ],
+        "mae": [
+          294.5296603298128,
+          269.8017210231127,
+          324.40410630032534
+        ],
+        "rmse": [
+          1030.9185228564772,
+          735.3306097708335,
+          1352.3872386688283
+        ],
+        "naive_pr_auc": 0.32860328400567607,
+        "naive_mae": 513.0391173613045,
+        "naive_rmse": 2057.1200931316357,
+        "n_train": 8803,
+        "n_evaluation": 4933
+      },
+      "final_test": {
+        "pr_auc": [
+          0.7501843981461881,
+          0.7311897192590284,
+          0.7687970073565256
+        ],
+        "roc_auc": [
+          0.7899770636509237,
+          0.7776371408895678,
+          0.8020093431532789
+        ],
+        "mae": [
+          395.6872411622351,
+          350.8929116466427,
+          453.5255160545509
+        ],
+        "rmse": [
+          2016.1352841663168,
+          1188.642622179252,
+          2805.0318907421697
+        ],
+        "naive_pr_auc": 0.4336299943192577,
+        "naive_mae": 636.3386447495952,
+        "naive_rmse": 3288.87219822376,
+        "n_train": 13736,
+        "n_evaluation": 5281
+      }
+    }
+  },
+  {
+    "run_id": "baseline_temporal_20261026T194009Z",
+    "git_commit": "334a105",
+    "validation": {
+      "method": "expanding_temporal_snapshots",
+      "train_decision_dates": [
+        "2010-12-01",
+        "2011-03-01"
+      ],
+      "validation_decision_date": "2011-06-01",
+      "final_test_decision_date": "2011-09-10",
+      "outcome_horizon_days": 90,
+      "n_bootstrap": 1000
+    },
+    "models": [
+      "naive",
+      "logistic_regression",
+      "linear_regression"
+    ],
+    "metrics": {
+      "validation": {
+        "pr_auc": [
+          0.6952684044539377,
+          0.670952220608613,
+          0.7176930898602101
+        ],
+        "roc_auc": [
+          0.8060389081112332,
+          0.7927541497228243,
+          0.8188549385450891
+        ],
+        "mae": [
+          294.5296603298128,
+          269.8017210231127,
+          324.40410630032534
+        ],
+        "rmse": [
+          1030.9185228564772,
+          735.3306097708335,
+          1352.3872386688283
+        ],
+        "naive_pr_auc": 0.32860328400567607,
+        "naive_mae": 513.0391173613045,
+        "naive_rmse": 2057.1200931316357,
+        "n_train": 8803,
+        "n_evaluation": 4933
+      },
+      "final_test": {
+        "pr_auc": [
+          0.7501843981461881,
+          0.7311897192590284,
+          0.7687970073565256
+        ],
+        "roc_auc": [
+          0.7899770636509237,
+          0.7776371408895678,
+          0.8020093431532789
+        ],
+        "mae": [
+          395.6872411622351,
+          350.8929116466427,
+          453.5255160545509
+        ],
+        "rmse": [
+          2016.1352841663168,
+          1188.642622179252,
+          2805.0318907421697
+        ],
+        "naive_pr_auc": 0.4336299943192577,
+        "naive_mae": 636.3386447495952,
+        "naive_rmse": 3288.87219822376,
+        "n_train": 13736,
+        "n_evaluation": 5281
+      }
+    }
+  },
+  {
+    "run_id": "baseline_temporal_20261026T194343Z",
+    "git_commit": "334a105",
+    "validation": {
+      "method": "expanding_temporal_snapshots",
+      "train_decision_dates": [
+        "2010-12-01",
+        "2011-03-01"
+      ],
+      "validation_decision_date": "2011-06-01",
+      "final_test_decision_date": "2011-09-10",
+      "outcome_horizon_days": 90,
+      "n_bootstrap": 1000
+    },
+    "models": [
+      "naive",
+      "logistic_regression",
+      "linear_regression"
+    ],
+    "metrics": {
+      "validation": {
+        "pr_auc": [
+          0.6952684044539377,
+          0.670952220608613,
+          0.7176930898602101
+        ],
+        "roc_auc": [
+          0.8060389081112332,
+          0.7927541497228243,
+          0.8188549385450891
+        ],
+        "mae": [
+          294.5296603298128,
+          269.8017210231127,
+          324.40410630032534
+        ],
+        "rmse": [
+          1030.9185228564772,
+          735.3306097708335,
+          1352.3872386688283
+        ],
+        "naive_pr_auc": 0.32860328400567607,
+        "naive_mae": 513.0391173613045,
+        "naive_rmse": 2057.1200931316357,
+        "n_train": 8803,
+        "n_evaluation": 4933
+      },
+      "final_test": {
+        "pr_auc": [
+          0.7501843981461881,
+          0.7311897192590284,
+          0.7687970073565256
+        ],
+        "roc_auc": [
+          0.7899770636509237,
+          0.7776371408895678,
+          0.8020093431532789
+        ],
+        "mae": [
+          395.6872411622351,
+          350.8929116466427,
+          453.5255160545509
+        ],
+        "rmse": [
+          2016.1352841663168,
+          1188.642622179252,
+          2805.0318907421697
+        ],
+        "naive_pr_auc": 0.4336299943192577,
+        "naive_mae": 636.3386447495952,
+        "naive_rmse": 3288.87219822376,
+        "n_train": 13736,
+        "n_evaluation": 5281
+      }
+    }
   }
 ]

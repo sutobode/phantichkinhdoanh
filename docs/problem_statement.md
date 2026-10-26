@@ -65,6 +65,8 @@ future-gross-sales MAE £395.69 / RMSE £2,016.14. Decision extensions calculate
 analytical break-even growth/discounts and a 20-cell response × discount grid;
 the dashboard explores assumptions without fitting models. Full results and
 non-causal policy comparisons are in `docs/model_card.md` and `docs/executive_brief.md`.
+The primary analysis retains exact transaction duplicates; a separately named
+drop-duplicate sensitivity uses the same dates/models and does not overwrite it.
 
 ## Vì sao KHÔNG dùng causal uplift
 

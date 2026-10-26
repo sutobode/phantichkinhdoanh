@@ -20,11 +20,16 @@ margin mà không over-discount?
 Python 3.11; use the pinned dependencies below. `curl` and `unzip` are required
 for the download example (or extract the archive with your OS archive tool).
 
-```bash
-python -m venv .venv
-.venv\Scripts\activate       # Windows
-pip install -r requirements.txt
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+python --version              # must report Python 3.11.x
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
+
+On macOS/Linux, replace the first two commands with `python3.11 -m venv .venv`
+and `source .venv/bin/activate`.
 
 ## Dữ liệu
 
@@ -33,10 +38,14 @@ Xem chi tiết nguồn/ngày tải/filter trong `docs/data_dictionary.md`.
 
 Tải và giải nén:
 
-```bash
-curl -L -o data/raw/online_retail_ii.zip https://archive.ics.uci.edu/static/public/502/online+retail+ii.zip
-unzip -o data/raw/online_retail_ii.zip -d data/raw/
+```powershell
+curl.exe -L -o data/raw/online_retail_ii.zip https://archive.ics.uci.edu/static/public/502/online+retail+ii.zip
+Expand-Archive -Force data/raw/online_retail_ii.zip data/raw/
+Get-FileHash data/raw/online_retail_II.xlsx -Algorithm SHA256
 ```
+
+Expected workbook SHA-256:
+`bcbe73b35f5b7babf197fb0cb983a11f5d9ff929078d4aa53d171b1f2df2e980`.
 
 ## Chạy pipeline (theo thứ tự)
 
@@ -45,20 +54,22 @@ python src/01_eda.py                  # optional source EDA
 python src/02_cleaning_features.py    # duplicate audit + temporal snapshots + cohort
 python src/03_baseline_models.py      # RFM + logistic/linear temporal evaluation
 python src/05_decision_scenario.py    # baseline-only equal-capacity NET scenarios
+python src/07_duplicate_robustness.py # secondary retain-vs-drop duplicate sensitivity
 ```
 
-Default `decision.value_prediction_source: baseline` needs no GBM. Optional comparison:
+Default `decision.value_prediction_source: baseline` remains the frozen business
+source. Run the independent Phase 3 advanced benchmark after steps 02 and 03:
 
 ```bash
-python src/04_advanced_models.py      # optional GBM + calibration/SHAP/subgroup errors
+python src/04_advanced_models.py      # GBM + calibration + Tree SHAP + rolling origins
 ```
 
-For an advanced-source scenario run, preselect `value_prediction_source: advanced`
-in config and run 04 before 05. Do not choose source based on final-test performance.
-Both source files use the same prediction-column meanings; baseline remains separate.
+Phase 3 selection is validation-only and does not alter the Phase 1/2 promotion
+policy. Both source files use the same prediction-column meanings; baseline remains
+the primary reference and configured scenario input.
 
 ```bash
-python src/06_final_qa.py             # reruns 02→03→05 + tests/invariants;
+python src/06_final_qa.py             # reruns 02→03→05→07 + tests/invariants;
                                     # inserts 04 only for advanced source
 ```
 
@@ -94,6 +105,21 @@ first: **34,335**, retained under the documented policy.
 | Logistic Regression | 0.750184 | 0.789977 | — | — |
 | Linear Regression, clipped | — | — | £395.69 | £2,016.14 |
 | Naive | 0.433630 | — | £636.34 | £3,288.87 |
+
+Phase 3 validation selected both GBM challengers under predeclared thresholds.
+On final test, GBM classification reached PR-AUC **0.769056** and ROC-AUC **0.798659**;
+GBM regression reached MAE **£400.40** and RMSE **£2,167.29**, worse than the final
+Linear Regression despite its validation MAE gain. Sigmoid calibration was not
+retained because validation Brier improved by only 0.000096 versus the required
+0.002. Five secondary origins show mean baseline/GBM PR-AUC 0.7179/0.7242 and mean
+MAE £517.79/£514.06; regression leadership is not consistent. These findings do
+not change the no-campaign recommendation.
+
+Duplicate-policy sensitivity preserves the primary `retain` policy and separately
+removes 34,335 exact duplicate rows. The final population/repeat rate remain
+5,281/43.36%; PR-AUC is 0.750191, ROC-AUC 0.789971, MAE £396.54 and RMSE £2,066.55
+under removal. Proposed still selects zero in all three scenarios, so the main
+recommendation is qualitatively unchanged. Exact duplicates are not asserted to be errors.
 
 Non-targeted now reports **1,000 uniform K-customer campaigns, seed 42**, rather
 than the former single seeded draw. Each draw selects 1,500 distinct customers.
@@ -135,8 +161,11 @@ points, not an empirically established continuous frontier. Main assumptions rem
   4 discounts × 5 growth assumptions, eligibility, selection and NET margin vs No Promotion.
 - `outputs/run_manifest.json`: QA-generated timestamp, Git commit/dirty flag, Python,
   raw/config/requirements SHA-256 hashes, temporal design/source, and row/customer counts.
-- Optional step 04: `outputs/temporal_model_comparison.csv`, `temporal_*` diagnostics,
-  `outputs/figures/temporal_calibration_curve.png`, and `models/gbm_*.joblib`.
+- Phase 3 step 04: `outputs/temporal_model_comparison.csv`, `model_selection.csv`,
+  `calibration_metrics.csv`, `calibration_table.csv`, `advanced_feature_importance.csv`,
+  `rolling_origin_metrics.csv`, three compact figures, and `models/gbm_*.joblib`.
+- Phase 4 duplicate sensitivity: `outputs/duplicate_robustness_summary.csv` and
+  `duplicate_robustness_business_metrics.csv`; primary outputs continue to retain duplicates.
 
 Run 02/03/05 after changing the analytical configuration. Legacy generated files
 are not corrected results merely because they exist. Run final QA to regenerate and

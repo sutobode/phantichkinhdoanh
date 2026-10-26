@@ -23,21 +23,60 @@ Historical artifacts are identified in `outputs/RESULTS_STATUS.md`.
   retained. `customer_test_scores.csv` is the current customer-level evaluation
   artifact, explicitly allowed by `.gitignore`; intermediate processed files stay ignored.
 
+## Duplicate policy → secondary robustness
+
+- **Primary policy:** `cleaning.exact_duplicate_policy=retain`; source semantics do
+  not establish that exact repeated lines are erroneous.
+- **Sensitivity implementation:** `src/07_duplicate_robustness.py` applies
+  `drop_exact_duplicates` in a separate in-memory path, then reuses step 02 snapshot,
+  step 03 baseline and step 05 policy functions with unchanged dates and assumptions.
+- **Isolation:** only `outputs/duplicate_robustness_summary.csv` and
+  `duplicate_robustness_business_metrics.csv` are written. Primary decision artifacts
+  are protected by output-name tests and were hash-checked unchanged during execution.
+- **Result:** 1,033,036 rows after removal; final customers/repeat rate remain
+  5,281/43.36%. PR-AUC 0.750191, ROC-AUC 0.789971, MAE £396.54, RMSE £2,066.55.
+  Proposed contacts/margin remain 0/£0 in all scenarios; recommendation unchanged.
+
 ## Prediction → final-test policy inputs
 
 - **Implementation:** `src/03_baseline_models.py::evaluate_temporal_models` fits
   earlier train snapshots for validation, then train+validation for final test.
 - **Baseline:** train-only StandardScaler + LogisticRegression; LinearRegression;
   RFM and naive comparators. No random customer split.
-- **Optional:** `src/04_advanced_models.py` uses the same temporal evaluator for GBM,
-  preserving calibration, SHAP and subgroup diagnostics.
+- **Phase 3:** `src/04_advanced_models.py` evaluates one seeded sklearn GBM per task
+  under the same main split. `select_models` reads validation rows only. Predeclared
+  gates are +0.01 PR-AUC with ≤0.005 Brier worsening and +5% relative MAE with
+  ≤5% p90-error worsening. Both GBM challengers pass validation; the regression
+  result reverses on final MAE, so no retrospective reselection is made.
 - **Outputs:** `models/temporal_registry.json`,
-  `data/processed/customer_test_predictions.csv`, optional
-  `data/processed/customer_test_predictions_advanced.csv`.
+  `data/processed/customer_test_predictions.csv`,
+  `data/processed/customer_test_predictions_advanced.csv`,
+  `outputs/temporal_model_comparison.csv`, `outputs/model_selection.csv`.
 - **Validation:** `src/utils.py::validate_final_test_predictions` rejects legacy,
   mixed-snapshot and deployment rows. Model source is fixed in configuration,
   not selected by final-test accuracy. Clipped predictions are evaluated and used
   in business logic; unconstrained predictions remain diagnostic fields.
+
+## Phase 3 calibration → attribution → robustness
+
+- **Calibration:** `fit_sigmoid_calibrator` enforces fit → calibration → evaluation
+  chronology. Ten equal-width bins feed Brier/ECE outputs. Validation Brier improves
+  only 0.000096, below the fixed 0.002 gate, so sigmoid calibration is not retained.
+  Outputs: `calibration_metrics.csv`, `calibration_table.csv`, calibration figure.
+- **Attribution:** Tree SHAP uses a deterministic seed-42 sample of 750 final-test
+  customers. Frequency and recency have the largest mean absolute predictive
+  attributions. This is model attribution, not causality or treatment response.
+  Outputs: `advanced_feature_importance.csv`, `figures/shap_summary.png`.
+- **Robustness:** six configured quarterly-ish snapshots support five secondary
+  evaluation origins. `eligible_rolling_training` admits only snapshots whose label
+  windows end strictly before each origin; `build_snapshot` keeps features before
+  decision time. Mean PR-AUC baseline/GBM is 0.7179/0.7242; mean MAE £517.79/£514.06.
+  Regression leadership is mixed. Outputs: `rolling_origin_metrics.csv`,
+  `figures/rolling_origin_performance.png`.
+- **Tests:** final-label mutation, validation-only selection, calibration exclusion,
+  rolling label/feature boundaries, stable output schema and deterministic sampling.
+- **Boundary:** `decision.value_prediction_source` remains `baseline`; no Phase 1/2
+  economics, assumptions, targeting, break-even, Monte Carlo or dashboard logic changes.
 
 ## Economics → no campaign under the current assumptions
 
@@ -99,7 +138,7 @@ Historical artifacts are identified in `outputs/RESULTS_STATUS.md`.
   do not retrain models or change saved global comparisons. Filtered-population scope
   and exploratory/non-causal interpretation are explicitly displayed.
 - `tornado_bar_bounds` guarantees nonnegative widths for reversed endpoints.
-- `src/06_final_qa.py`: baseline 02→03→05 (04 only for advanced source), tests,
+- `src/06_final_qa.py`: baseline 02→03→05→07 (04 only for advanced source), tests,
   temporal provenance, nonnegative values and recomputed scenario consistency.
 - On success, QA writes and validates `outputs/run_manifest.json`: programmatic
   raw/config/requirements SHA-256, timestamp, Git commit/dirty state, Python/platform,
