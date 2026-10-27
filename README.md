@@ -166,11 +166,19 @@ points, not an empirically established continuous frontier. Main assumptions rem
   `rolling_origin_metrics.csv`, three compact figures, and `models/gbm_*.joblib`.
 - Phase 4 duplicate sensitivity: `outputs/duplicate_robustness_summary.csv` and
   `duplicate_robustness_business_metrics.csv`; primary outputs continue to retain duplicates.
+- `docs/executive_brief.pdf`: submission-ready brief rendered from the authoritative
+  Markdown with `python scripts/render_executive_brief.py`; the command verifies the
+  PDF page count does not exceed two.
 
 Run 02/03/05 after changing the analytical configuration. Legacy generated files
 are not corrected results merely because they exist. Run final QA to regenerate and
 hash-validate the manifest. Unchanged raw/config bytes reproduce the same hashes;
 timestamps and Git state may differ. Synthetic tests are not substitutes for UCI metrics.
+
+`outputs/run_manifest.json` records the analytical run that generated the reported
+artifacts. The final submission may be a later clean Git revision containing those
+validated artifacts plus packaging or documentation updates; the manifest's recorded
+run commit and dirty state therefore do not describe the release checkout state.
 
 ## Dashboard
 

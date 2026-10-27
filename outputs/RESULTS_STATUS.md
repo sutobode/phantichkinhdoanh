@@ -37,8 +37,12 @@ only on fixed final-test predictions in memory; no models are retrained.
 ## Historical evidence, not current results
 
 `data/processed/customer_scores.csv`, `models/registry.json`,
-`outputs/rolling_origin_validation.csv`, unprefixed `calibration_*.csv`,
+`outputs/rolling_origin_validation.csv`, `outputs/calibration_logreg.csv`,
+`outputs/calibration_gbm.csv`,
 `shap_feature_importance.csv`, `error_by_segment.csv`,
 `ethics_bias_check_by_country.csv`, and `figures/calibration_curve.png` belong to
 the pre-remediation design if present. They are not used to support current claims.
-No advanced-model work is part of Phase 1 + Phase 2.
+
+Current calibration evidence is `outputs/temporal_calibration_logreg.csv` for the
+baseline and `outputs/calibration_metrics.csv` / `outputs/calibration_table.csv`
+for Phase 3. No advanced-model work is required by the Phase 1 + Phase 2 baseline.
