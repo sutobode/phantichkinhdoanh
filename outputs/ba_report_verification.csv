@@ -1,0 +1,79 @@
+section,item,reported,reproduced,match
+2.1,Tổng số dòng,1067371.0,1067371.0,True
+2.1,Dòng thiếu Customer ID,243007.0,243007.0,True
+2.1,Dòng trùng lặp hoàn toàn,34335.0,34335.0,True
+Table 4,Số khách train1,4266.0,4266.0,True
+Table 4,Số khách train2,4537.0,4537.0,True
+Table 4,Số khách validation,4933.0,4933.0,True
+Table 4,Số khách test,5281.0,5281.0,True
+2.2,Repeat rate final test (%),43.36,43.363,True
+2.2,Mean future gross (£),543.11,543.1097,True
+Table 1,Mean historical gross (£),2705.44,2705.4362,True
+Table 1,Median historical gross (£),804.02,804.02,True
+2.2,Top 53 chiếm % future gross,37.58,37.5756,True
+Table 3,Số khách Champions,1507.0,1507.0,True
+Table 3,Repeat rate Champions (%),76.51,76.5096,True
+Table 3,Số khách Loyal,1065.0,1065.0,True
+Table 3,Repeat rate Loyal (%),46.57,46.5728,True
+Table 3,Số khách At-risk,1136.0,1136.0,True
+Table 3,Repeat rate At-risk (%),33.01,33.0106,True
+Table 3,Số khách Lost,1573.0,1573.0,True
+Table 3,Repeat rate Lost (%),16.91,16.9104,True
+6.1 validation,AP naive,0.3286,0.3286,True
+6.1 validation,AP logistic,0.6953,0.6953,True
+6.1 validation,ROC logistic,0.806,0.806,True
+6.1 validation,AP GBM,0.7189,0.7189,True
+6.1 validation,ROC GBM,0.815,0.815,True
+6.1 validation,MAE naive,513.04,513.0391,True
+6.1 validation,RMSE naive,2057.12,2057.1201,True
+6.1 validation,MAE linear,294.53,294.5297,True
+6.1 validation,RMSE linear,1030.92,1030.9185,True
+6.1 validation,MAE GBM,277.66,277.7037,True
+6.1 validation,RMSE GBM,1120.81,1120.8139,True
+6.1 final test,AP naive,0.4336,0.4336,True
+6.1 final test,AP logistic,0.7502,0.7502,True
+6.1 final test,ROC logistic,0.79,0.79,True
+6.1 final test,AP GBM,0.7691,0.7691,True
+6.1 final test,ROC GBM,0.7987,0.7987,True
+6.1 final test,MAE naive,636.34,636.3386,True
+6.1 final test,RMSE naive,3288.87,3288.8722,True
+6.1 final test,MAE linear,395.69,395.6872,True
+6.1 final test,RMSE linear,2016.14,2016.1353,True
+6.1 final test,MAE GBM,400.4,400.1142,True
+6.1 final test,RMSE GBM,2167.29,2167.1082,True
+6.1 final test,Số dự báo Linear âm bị clip,1583.0,1583.0,True
+6.1 final test,Mean dự báo Linear (£),379.0,378.9967,True
+Table 7,Max coefficient Conservative,-0.0045,-0.0045,True
+Table 7,Max coefficient Moderate,-0.022,-0.022,True
+Table 7,Max coefficient Aggressive,-0.109,-0.109,True
+Table 8,Non-targeted Conservative,-17417.59,-17417.5874,True
+Table 8,RFM-based Conservative,-55333.45,-55333.4477,True
+Table 8,Proposed Conservative (số khách chọn),0.0,0.0,True
+Table 8,Non-targeted Moderate,-37407.57,-37449.8355,True
+Table 8,RFM-based Moderate,-118314.35,-118314.3488,True
+Table 8,Proposed Moderate (số khách chọn),0.0,0.0,True
+Table 8,Non-targeted Aggressive,-90677.15,-91200.1982,True
+Table 8,RFM-based Aggressive,-277865.97,-277865.9651,True
+Table 8,Proposed Aggressive (số khách chọn),0.0,0.0,True
+8.2,d=5% b=20% số khách,1500.0,1500.0,True
+8.2,d=5% b=20% margin (£),7175.92,7175.9181,True
+8.2,d=10% b=30% số khách,664.0,664.0,True
+8.2,d=10% b=30% margin (£),1424.27,1424.2738,True
+8.2,d=15% b=50% số khách,616.0,616.0,True
+8.2,d=15% b=50% margin (£),962.39,962.3895,True
+8.2,d=10% b=35% margin (£),3990.8,3990.7996,True
+8.2,g=50% margin (£),143.77,143.7722,True
+Table 9,Champions số khách v>0,1503.0,1503.0,True
+Table 9,Champions median growth cần (%),67.38,67.3751,True
+Table 9,Champions median discount tối đa (%),3.54,3.5398,True
+Table 9,Loyal số khách v>0,951.0,951.0,True
+Table 9,Loyal median growth cần (%),34.47,34.4679,True
+Table 9,Loyal median discount tối đa (%),6.38,6.383,True
+Table 9,At-risk số khách v>0,779.0,779.0,True
+Table 9,At-risk median growth cần (%),26.75,26.7479,True
+Table 9,At-risk median discount tối đa (%),7.91,7.9114,True
+Table 9,Lost số khách v>0,465.0,465.0,True
+Table 9,Lost median growth cần (%),90.49,90.4855,True
+Table 9,Lost median discount tối đa (%),2.17,2.1683,True
+7.4,Số khách Retain,2454.0,2454.0,True
+7.4,Số khách Nurture,0.0,0.0,True

@@ -1,0 +1,19 @@
+discount,growth,variant,n_selected,margin,overlap_with_gross
+0.05,0.1,gross (báo cáo),0,0.0,
+0.05,0.1,net label (retrain),0,0.0,
+0.05,0.1,gross x (1 - return share),0,0.0,
+0.1,0.2,gross (báo cáo),0,0.0,
+0.1,0.2,net label (retrain),0,0.0,
+0.1,0.2,gross x (1 - return share),0,0.0,
+0.2,0.35,gross (báo cáo),0,0.0,
+0.2,0.35,net label (retrain),0,0.0,
+0.2,0.35,gross x (1 - return share),0,0.0,
+0.05,0.2,gross (báo cáo),1500,7175.9180585173435,1.0
+0.05,0.2,net label (retrain),1500,6503.585921143087,0.9686666666666667
+0.05,0.2,gross x (1 - return share),1500,6603.101116533677,0.99
+0.1,0.3,gross (báo cáo),664,1424.27383685503,1.0
+0.1,0.3,net label (retrain),669,1221.5946101037046,0.9698795180722891
+0.1,0.3,gross x (1 - return share),651,1299.1451279910618,0.9804216867469879
+0.15,0.5,gross (báo cáo),616,962.3895239651251,1.0
+0.15,0.5,net label (retrain),624,812.422499265906,0.974025974025974
+0.15,0.5,gross x (1 - return share),604,872.2043095882201,0.9805194805194806

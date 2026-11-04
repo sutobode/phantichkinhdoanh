@@ -1,0 +1,13 @@
+metric,value
+P(blanket policy lỗ),0.585
+P(danh sách cố định có lãi),0.9604
+P(danh sách cố định > blanket),0.7352
+Median % margin đạt được so với oracle,0.9189045635940092
+P5 % margin đạt được so với oracle,0.229129162734254
+Median fixed_list_total (£),19297.071521974613
+P5 fixed_list_total (£),1156.006392621554
+P95 fixed_list_total (£),51043.617097776085
+P(khuyến mãi Champions có lãi),0.284
+P(khuyến mãi Loyal có lãi),0.8648
+P(khuyến mãi At-risk có lãi),0.9672
+P(khuyến mãi Lost có lãi),0.1042

@@ -1,0 +1,31 @@
+scenario,value_source,customers_eligible,customers_targeted,simulated_net_margin_on_actual_sales,share_of_oracle
+conservative,no_model_constant,0,0,0.0,
+conservative,historical_monetary_scaled,0,0,0.0,
+conservative,linear_baseline (báo cáo),0,0,0.0,
+conservative,gbm_advanced,0,0,0.0,
+conservative,oracle_actual_sales,0,0,0.0,
+moderate,no_model_constant,0,0,0.0,
+moderate,historical_monetary_scaled,0,0,0.0,
+moderate,linear_baseline (báo cáo),0,0,0.0,
+moderate,gbm_advanced,0,0,0.0,
+moderate,oracle_actual_sales,0,0,0.0,
+aggressive,no_model_constant,0,0,0.0,
+aggressive,historical_monetary_scaled,0,0,0.0,
+aggressive,linear_baseline (báo cáo),0,0,0.0,
+aggressive,gbm_advanced,0,0,0.0,
+aggressive,oracle_actual_sales,0,0,0.0,
+illustrative_light,no_model_constant,2201,1500,9313.820495200009,0.6378446180810788
+illustrative_light,historical_monetary_scaled,2186,1500,9534.120160000008,0.6529315478356476
+illustrative_light,linear_baseline (báo cáo),1600,1500,11469.28632000001,0.7854588303707533
+illustrative_light,gbm_advanced,1846,1500,11384.86804950001,0.7796775573116592
+illustrative_light,oracle_actual_sales,869,869,14602.020980000012,1.0
+illustrative_standard,no_model_constant,2201,1500,6592.350156500024,0.8095988492109593
+illustrative_standard,historical_monetary_scaled,1969,1500,6394.686895000025,0.7853240541465774
+illustrative_standard,linear_baseline (báo cáo),1361,1361,5794.947660000031,0.7116707767939008
+illustrative_standard,gbm_advanced,1508,1500,6494.517544250032,0.7975841399778947
+illustrative_standard,oracle_actual_sales,849,849,8142.736570000038,1.0
+illustrative_deep,no_model_constant,1136,1136,1725.0372499999917,0.8188998721297654
+illustrative_deep,historical_monetary_scaled,966,966,1543.3444999999926,0.7326477232315864
+illustrative_deep,linear_baseline (báo cáo),616,616,1157.6464999999948,0.5495513623381008
+illustrative_deep,gbm_advanced,820,820,1412.5249999999935,0.6705458342305926
+illustrative_deep,oracle_actual_sales,370,370,2106.530124999991,1.0
