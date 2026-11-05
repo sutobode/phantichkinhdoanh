@@ -1,0 +1,3 @@
+variant,raw_rows,final_test_customers,final_test_pr_auc,final_test_mae
+primary (all StockCodes),1067371,5281,0.7501843981461881,395.6872411622351
+product_only,1061278,5256,0.7513150547363572,386.7267806370294

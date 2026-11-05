@@ -1,0 +1,22 @@
+design,item,count,training_origins
+main,final_test snapshot 2011-09-10,5281,
+main,train snapshot 2010-12-01,4266,
+main,train snapshot 2011-03-01,4537,
+main,validation snapshot 2011-06-01,4933,
+main,validation fit = train snapshots,8803,
+main,final fit = train + validation snapshots,13736,
+rolling,origin 2010-09-01 n_train (code: strict <),2703,2010-06-01
+rolling,origin 2010-09-01 n_train if <= were used,2703,
+rolling,origin 2010-09-01 n_evaluation,3321,
+rolling,origin 2010-12-01 n_train (code: strict <),6024,"2010-06-01, 2010-09-01"
+rolling,origin 2010-12-01 n_train if <= were used,6024,
+rolling,origin 2010-12-01 n_evaluation,4266,
+rolling,origin 2011-03-01 n_train (code: strict <),6024,"2010-06-01, 2010-09-01"
+rolling,origin 2011-03-01 n_train if <= were used,10290,
+rolling,origin 2011-03-01 n_evaluation,4537,
+rolling,origin 2011-06-01 n_train (code: strict <),14827,"2010-06-01, 2010-09-01, 2010-12-01, 2011-03-01"
+rolling,origin 2011-06-01 n_train if <= were used,14827,
+rolling,origin 2011-06-01 n_evaluation,4933,
+rolling,origin 2011-09-10 n_train (code: strict <),19760,"2010-06-01, 2010-09-01, 2010-12-01, 2011-03-01, 2011-06-01"
+rolling,origin 2011-09-10 n_train if <= were used,19760,
+rolling,origin 2011-09-10 n_evaluation,5281,

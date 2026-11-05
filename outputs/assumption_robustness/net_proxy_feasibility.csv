@@ -1,0 +1,13 @@
+item,value
+cancellation rows in final-test outcome window,2657.0
+cancelled value (£),101864.19
+gross sales in outcome window (£),2868162.1520000002
+cancelled value / gross sales,0.0355154920125311
+cancellation invoice number (without 'C') equals a purchase invoice,0.0
+median lag cancellation - latest same-SKU purchase (days),14.0
+value share: no_prior_purchase_same_customer_stockcode,0.1043389242087921
+row count: no_prior_purchase_same_customer_stockcode,104.0
+value share: prior_purchase_before_decision_date,0.2394508806284132
+row count: prior_purchase_before_decision_date,800.0
+value share: prior_purchase_inside_outcome_window,0.6562101951627948
+row count: prior_purchase_inside_outcome_window,1753.0

@@ -1,0 +1,13 @@
+scenario,variant,customers_targeted,net_margin,list_overlap_with_primary
+conservative,primary,0,0.0,
+conservative,product_only,0,0.0,
+moderate,primary,0,0.0,
+moderate,product_only,0,0.0,
+aggressive,primary,0,0.0,
+aggressive,product_only,0,0.0,
+illustrative_light,primary,1500,7175.918058517352,0.9666666666666667
+illustrative_light,product_only,1500,6898.426787768217,0.9666666666666667
+illustrative_standard,primary,1361,3990.7995761236643,0.9654665686994857
+illustrative_standard,product_only,1371,3745.0370118708342,0.9654665686994857
+illustrative_deep,primary,616,962.3895239651262,0.9642857142857143
+illustrative_deep,product_only,633,870.412084537172,0.9642857142857143
