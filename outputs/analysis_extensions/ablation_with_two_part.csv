@@ -1,0 +1,37 @@
+scenario,value_source,customers_eligible,customers_targeted,simulated_net_margin_on_actual_sales,share_of_oracle
+conservative,no_model_constant,0,0,0.0,
+conservative,linear_baseline (báo cáo),0,0,0.0,
+conservative,gbm_advanced,0,0,0.0,
+conservative,two_part_loglinear,0,0,0.0,
+conservative,two_part_gbm,0,0,0.0,
+conservative,oracle_actual_sales,0,0,0.0,
+moderate,no_model_constant,0,0,0.0,
+moderate,linear_baseline (báo cáo),0,0,0.0,
+moderate,gbm_advanced,0,0,0.0,
+moderate,two_part_loglinear,0,0,0.0,
+moderate,two_part_gbm,0,0,0.0,
+moderate,oracle_actual_sales,0,0,0.0,
+aggressive,no_model_constant,0,0,0.0,
+aggressive,linear_baseline (báo cáo),0,0,0.0,
+aggressive,gbm_advanced,0,0,0.0,
+aggressive,two_part_loglinear,0,0,0.0,
+aggressive,two_part_gbm,0,0,0.0,
+aggressive,oracle_actual_sales,0,0,0.0,
+illustrative_light,no_model_constant,2201,1500,9313.820495200009,0.6378446180810788
+illustrative_light,linear_baseline (báo cáo),1600,1500,11469.28632000001,0.7854588303707533
+illustrative_light,gbm_advanced,1846,1500,11384.069441250009,0.7796228656870482
+illustrative_light,two_part_loglinear,2189,1500,11737.402150000013,0.8038203866489722
+illustrative_light,two_part_gbm,2188,1500,11416.280670000011,0.78182880887766
+illustrative_light,oracle_actual_sales,869,869,14602.020980000012,1.0
+illustrative_standard,no_model_constant,2201,1500,6595.072154700025,0.80993313464149
+illustrative_standard,linear_baseline (báo cáo),1361,1361,5794.947660000031,0.7116707767939008
+illustrative_standard,gbm_advanced,1508,1500,6495.209467500032,0.7976691142668271
+illustrative_standard,two_part_loglinear,1923,1500,6739.163280000027,0.8276287980172242
+illustrative_standard,two_part_gbm,1850,1500,7063.102075000031,0.8674113443657674
+illustrative_standard,oracle_actual_sales,849,849,8142.736570000038,1.0
+illustrative_deep,no_model_constant,1136,1136,1725.0372499999917,0.8188998721297654
+illustrative_deep,linear_baseline (báo cáo),616,616,1157.6464999999948,0.5495513623381008
+illustrative_deep,gbm_advanced,820,820,1412.5249999999935,0.6705458342305926
+illustrative_deep,two_part_loglinear,864,864,1510.8528749999932,0.7172234838084737
+illustrative_deep,two_part_gbm,863,863,1449.2861249999933,0.687996866410823
+illustrative_deep,oracle_actual_sales,370,370,2106.530124999991,1.0

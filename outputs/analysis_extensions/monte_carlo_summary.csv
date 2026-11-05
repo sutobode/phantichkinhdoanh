@@ -1,0 +1,6 @@
+,linked,independent
+P(policy chọn 0 khách),0.8288,0.7094
+P(random K khách lỗ),1.0,0.9682
+P(proposed >= random),1.0,1.0
+Median margin khi có chọn (£),1353.7756150461637,4546.9176633999095
+P95 margin proposed (£),2638.9822941788757,13676.902461799367

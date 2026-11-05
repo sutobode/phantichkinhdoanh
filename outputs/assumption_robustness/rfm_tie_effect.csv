@@ -1,0 +1,2 @@
+customers,segment_changes_if_average_rank,share,note
+5281,193,0.03654610869153569,"rank(method='first') phá hòa theo thứ tự dòng (Customer ID tăng dần); chỉ để định lượng, không đổi nhãn"

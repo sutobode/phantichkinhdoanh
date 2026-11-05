@@ -1,0 +1,7 @@
+,linked,independent
+P(policy không chọn ai),0.8288,0.7118
+P(mọi segment có α < 0),0.8268,0.7108
+P(chọn ngẫu nhiên 1.500 khách bị lỗ),1.0,0.968
+Median margin khi có chọn (£),1353.775615046157,4571.552590547763
+P95 margin proposed (£),2638.9822941788725,13966.594524962324
+P(proposed >= random),1.0,1.0
