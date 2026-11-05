@@ -29,6 +29,8 @@ Chạy: python src/05_decision_scenario.py
 """
 from __future__ import annotations
 
+from copy import deepcopy
+
 import numpy as np
 import pandas as pd
 
@@ -156,6 +158,22 @@ def build_scenario_table(df: pd.DataFrame, config: dict) -> pd.DataFrame:
                 "interval_type": "random_policy_simulation_not_causal_CI" if policy == "non_targeted" else "not_applicable",
             })
     return pd.DataFrame(rows)
+
+
+def evaluate_policy_scenario(df: pd.DataFrame, config: dict, discount_pct: float,
+                             response_rate: float, gross_margin_pct: float, budget_total: float) -> pd.DataFrame:
+    """Compare all policies in memory using the published scenario engine.
+
+    Override only exploratory assumptions; never mutate the baseline configuration.
+    The caller supplies the final-test population, independently of sidebar filters.
+    """
+    current = deepcopy(config)
+    current["decision"].update({
+        "discount_response_scenarios": [{"name": "Current Sandbox", "discount_pct": discount_pct,
+                                         "response_rate": response_rate}],
+        "gross_margin_pct": gross_margin_pct, "budget_total": budget_total,
+    })
+    return build_scenario_table(df, current)
 
 
 def policy_selections(df: pd.DataFrame, net_margin: pd.Series, config: dict) -> dict:

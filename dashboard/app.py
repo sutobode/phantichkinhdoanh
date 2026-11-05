@@ -16,15 +16,15 @@ import streamlit as st
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from utils import load_config, processed_path, outputs_path, validate_final_test_predictions  # noqa: E402
+from utils import load_config, processed_path, outputs_path, validate_final_test_predictions, sha256_file  # noqa: E402
 decision = import_module("05_decision_scenario")
 
 st.set_page_config(page_title="Customer Value & Promotion Targeting", layout="wide")
 
 
-@st.cache_data
-def load_data():
-    config = load_config(PROJECT_ROOT / "config" / "params.yaml")
+@st.cache_data(max_entries=2)
+def load_data(config, source_versions):
+    # Content fingerprints invalidate cached data when saved inputs are replaced.
     scores = pd.read_csv(processed_path("customer_test_scores.csv", config))
     validate_final_test_predictions(scores, config)
     scenario_table = pd.read_csv(outputs_path("scenario_table.csv"))
@@ -40,6 +40,15 @@ def load_data():
     return config, decision.prepare_scores(scores, config), scenario_table, cohort, metrics
 
 
+@st.cache_data(max_entries=32, hash_funcs={
+    pd.DataFrame: lambda frame: pd.util.hash_pandas_object(frame, index=True).values.tobytes(),
+})
+def compare_current_sandbox(scores, config, discount, response, margin, budget):
+    # Hash every score row (Streamlit otherwise samples large frames), plus all
+    # assumptions, segment multipliers, contact cost, seed and simulation count.
+    return decision.evaluate_policy_scenario(scores, config, discount, response, margin, budget)
+
+
 def sidebar_filter(label: str, all_label: str, options: list[str], key: str) -> list[str]:
     """Keep the default sidebar compact while preserving multi-select filtering."""
     if st.sidebar.checkbox(all_label, value=True, key=f"{key}_all"):
@@ -52,7 +61,12 @@ def gbp(value: float) -> str:
 
 
 try:
-    config, scores, scenario_table, cohort, metrics = load_data()
+    config = load_config(PROJECT_ROOT / "config" / "params.yaml")
+    source_versions = tuple(sha256_file(path) for path in (
+        processed_path("customer_test_scores.csv", config), outputs_path("scenario_table.csv"),
+        outputs_path("cohort_retention.csv"), PROJECT_ROOT / "models" / "temporal_registry.json",
+    ))
+    config, scores, scenario_table, cohort, metrics = load_data(config, source_versions)
 except (FileNotFoundError, ValueError, KeyError) as exc:
     st.error(f"Final temporal-test results unavailable: {exc}. Run steps 02 → 03 → 05 first.")
     st.stop()
@@ -127,8 +141,10 @@ if filtered.empty:
     st.warning("No customers match the current filters. Adjust the sidebar selection to evaluate a campaign.")
 elif summary["customers_targeted"] == 0:
     st.success(
-        "No campaign selected: no customer has positive simulated NET contribution after discount economics "
-        f"and the £{config['decision']['contact_cost_per_customer']:.2f} contact cost. "
+        "No campaign selected: "
+        + ("the contact budget allows zero contacts. " if summary["campaign_capacity"] == 0 else
+           "no customer has positive simulated NET contribution after discount economics "
+           f"and the £{config['decision']['contact_cost_per_customer']:.2f} contact cost. ") +
         "The No Promotion reference remains £0.00."
     )
 
@@ -136,13 +152,35 @@ st.divider()
 
 # --- Scenario comparison chart ---
 st.subheader("Global Policy Comparison")
-st.caption(
-    f"Saved results for all {len(scores):,} final-test customers; sidebar filters and sandbox controls do not apply. "
-    f"Non-targeted values average {config['decision']['random_policy_simulations']:,} seeded campaigns; "
-    "error bars are 2.5th–97.5th simulation percentiles, not causal confidence intervals. "
-    "All policies share maximum capacity K=1,500; Proposed may abstain."
+comparison_mode = st.segmented_control(
+    "Comparison mode", ["Current Sandbox", "Saved Scenarios"], default="Current Sandbox",
+    required=True, key="comparison_mode",
 )
-chart_data = scenario_table.copy()
+if comparison_mode == "Current Sandbox":
+    comparison_table = compare_current_sandbox(scores, config, discount, response, margin, budget)
+    st.markdown("**Current Sandbox (exploratory, non-causal)**")
+    st.caption(
+        f"All {len(scores):,} final-test customers; sidebar filters do not apply. "
+        f"Current assumptions: discount {discount:.0%}, base sales-volume growth {response:.0%}, "
+        f"gross margin {margin:.0%}, contact budget {gbp(budget)}."
+    )
+else:
+    comparison_table = scenario_table
+    st.markdown("**Saved scenarios (fixed, reproducible)**")
+    st.caption(
+        f"Saved results for all {len(scores):,} final-test customers from outputs/scenario_table.csv; "
+        "sidebar filters and sandbox controls do not apply."
+    )
+capacity = int(comparison_table["campaign_capacity"].iloc[0])
+draws = int(comparison_table["random_policy_simulations"].max())
+contact_cost = float(comparison_table["contact_cost_per_customer"].iloc[0])
+st.caption(
+    f"Non-targeted values average {draws:,} seeded campaigns; "
+    "error bars are 2.5th–97.5th random-policy simulation percentiles, not causal confidence intervals. "
+    f"All policies share maximum capacity K={capacity:,} at {gbp(contact_cost)} per contact; "
+    "Proposed selects only positive simulated NET contributions and may leave budget unused."
+)
+chart_data = comparison_table.copy()
 chart_data["policy_label"] = chart_data["policy"].map({"no_promotion": "No Promotion", "non_targeted": "Non-targeted (MC mean)",
                                                         "rfm": "RFM", "proposed": "Proposed"})
 chart_data["scenario_label"] = chart_data["scenario"].str.title()
@@ -158,8 +196,8 @@ fig_scenario = px.bar(
                      "policy_label": ["No Promotion", "Non-targeted (MC mean)", "RFM", "Proposed"]},
 )
 fig_scenario.update_layout(legend_title_text="Policy", margin={"t": 60, "b": 30})
-st.plotly_chart(fig_scenario, width="stretch")
-policy_display = scenario_table[["scenario", "policy", "discount_pct", "response_rate_reference",
+st.plotly_chart(fig_scenario, width="stretch", alt="Simulated NET margin by policy and scenario")
+policy_display = comparison_table[["scenario", "policy", "discount_pct", "response_rate_reference",
                                  "customers_targeted", "campaign_contact_cost",
                                  "simulated_net_incremental_margin", "random_p025_net_margin",
                                  "random_p975_net_margin"]].copy()
@@ -179,7 +217,7 @@ policy_display = policy_display.rename(columns={
     "campaign_contact_cost": "Contact Cost", "simulated_net_incremental_margin": "Simulated NET Margin",
     "random_p025_net_margin": "Simulation P2.5", "random_p975_net_margin": "Simulation P97.5",
 })
-st.dataframe(policy_display, width="stretch", hide_index=True)
+st.dataframe(policy_display, width="stretch", hide_index=True, alt="Policy comparison results and simulation percentiles")
 
 st.divider()
 

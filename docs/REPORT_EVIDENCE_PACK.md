@@ -303,12 +303,12 @@ Sources: `config/params.yaml:41-48`; `src/04_advanced_models.py::select_models,e
 
 ### 6.1 Validation and final test versus naive
 
-| Split | Evaluation N | Observed prevalence / naive AP | Logistic AP | Logistic ROC-AUC | Linear MAE (£) | Linear RMSE (£) | Naive MAE (£) | Naive RMSE (£) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Validation, 2011-06-01 | 4,933 | 0.3286032840 | 0.6952684045 | 0.8060389081 | 294.53 | 1,030.92 | 513.04 | 2,057.12 |
-| Final test, 2011-09-10 | 5,281 | 0.4336299943 | 0.7501843981 | 0.7899770637 | 395.69 | 2,016.14 | 636.34 | 3,288.87 |
+| Split | Evaluation N | Observed prevalence / naive AP | Naive ROC-AUC | Naive Brier | Logistic AP | Logistic ROC-AUC | Linear MAE (£) | Linear RMSE (£) | Naive MAE (£) | Naive RMSE (£) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Validation, 2011-06-01 | 4,933 | 0.3286032840 | 0.5000 | 0.2207662655 | 0.6952684045 | 0.8060389081 | 294.53 | 1,030.92 | 513.04 | 2,057.12 |
+| Final test, 2011-09-10 | 5,281 | 0.4336299943 | 0.5000 | 0.2550740578 | 0.7501843981 | 0.7899770637 | 395.69 | 2,016.14 | 636.34 | 3,288.87 |
 
-Source: `models/temporal_registry.json::run_id=baseline_temporal_20261027T013845Z,metrics.{validation,final_test}.{n_evaluation,naive_pr_auc,pr_auc,roc_auc,mae,rmse,naive_mae,naive_rmse}` (`:1081-1136`). Prevalence equality follows constant-score average precision; final observed rate independently agrees with score aggregate. Naive ROC-AUC was not stored; a constant score has theoretical ROC-AUC 0.5 when both classes are present, not a separately measured artifact here. Exact fitting-mean constant values were not exported in the current small summary artifacts.
+Source: `models/temporal_registry.json::run_id=baseline_temporal_20261027T013845Z,metrics.{validation,final_test}.{n_evaluation,naive_pr_auc,pr_auc,roc_auc,mae,rmse,naive_mae,naive_rmse}` (`:1081-1136`) and `data/processed/customer_snapshots.csv` (**new derived naive Brier and ROC-AUC calculations**). Validation uses the Train constant `2998/8803 = 0.34056571623310233`; final test uses the Train+Validation constant `4619/13736 = 0.33626965637740247`. Neither constant uses evaluation labels. Prevalence equality follows constant-score average precision; both evaluation sets contain both classes, so constant-score ROC-AUC is 0.5.
 
 ### 6.2 Baseline 95% percentile bootstrap intervals
 

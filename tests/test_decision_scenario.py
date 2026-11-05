@@ -274,3 +274,136 @@ def test_manifest_hashes_stable_and_sensitive_to_input_changes(final_scores, con
     changed = build_run_manifest(config, raw_file, config_file, 10, final_scores)
     assert changed["raw_data_sha256"] != first["raw_data_sha256"]
     assert changed["config_sha256"] == first["config_sha256"]
+
+
+@pytest.mark.parametrize("discount,growth,margin,budget", [
+    (.10, .20, .40, 1.25), (.05, .20, .40, 1.25), (.05, .30, .40, 1.25),
+    (.05, .20, .60, 1.25), (.05, .20, .40, 0), (.05, .20, .40, .25),
+    (.05, .20, .40, 750),
+])
+def test_current_comparison_independent_policy_totals(final_scores, config, discount, growth, margin, budget):
+    original = deepcopy(config)
+    table = decision.evaluate_policy_scenario(final_scores, config, discount, growth, margin, budget)
+    pd.testing.assert_frame_equal(table, decision.evaluate_policy_scenario(
+        final_scores, config, discount, growth, margin, budget))
+    assert config == original
+    rows = table.set_index("policy")
+    k = min(int(budget // .5), len(final_scores))
+    assert rows["campaign_capacity"].eq(k).all()
+    # Independent accounting: promoted sales less unchanged unit COGS,
+    # baseline contribution and actual contact expense.
+    v = final_scores["predicted_future_value"].clip(lower=0)
+    r = growth * final_scores["rfm_segment"].map(config["decision"]["segment_response_multiplier"])
+    net = v * (1 + r) * (1 - discount) - v * (1 + r) * (1 - margin) - v * margin - .5
+    rfm_ids = final_scores.sort_values(["rfm_score", "monetary", "Customer ID"],
+                                      ascending=[False, False, True]).index[:k]
+    proposed = net[net > 0].nlargest(k)
+    rng = np.random.default_rng(config["seed"])
+    totals = [net.iloc[rng.choice(len(net), k, replace=False)].sum()
+              for _ in range(config["decision"]["random_policy_simulations"])]
+    for policy, count, total in [("no_promotion", 0, 0), ("rfm", k, net.loc[rfm_ids].sum()),
+                                 ("proposed", len(proposed), proposed.sum()),
+                                 ("non_targeted", k, np.mean(totals))]:
+        row = rows.loc[policy]
+        assert row.customers_targeted == count
+        assert row.campaign_contact_cost == count * .5
+        assert row.simulated_net_incremental_margin == pytest.approx(total)
+        assert row.simulated_gross_incremental_margin - count * .5 == pytest.approx(total)
+    np.testing.assert_allclose(rows.loc["non_targeted", ["random_p025_net_margin", "random_p975_net_margin"]]
+                               .to_numpy(dtype=float), np.quantile(totals, [.025, .975]), atol=1e-10)
+    prepared = decision.prepare_scores(final_scores, config)
+    _, summary = decision.evaluate_proposed_scenario(prepared, config, discount, growth, margin, budget)
+    assert rows.loc["proposed", "simulated_net_incremental_margin"] == pytest.approx(summary["simulated_net_incremental_margin"])
+
+
+def test_dashboard_live_comparison_and_saved_artifacts(monkeypatch):
+    from streamlit.testing.v1 import AppTest
+    import streamlit as st
+    from utils import sha256_file, processed_path, outputs_path
+
+    cfg = load_config()
+    score_path = processed_path("customer_test_scores.csv", cfg)
+    saved_path = outputs_path("scenario_table.csv")
+    if not score_path.exists() or not saved_path.exists():
+        pytest.skip("Dashboard smoke test requires saved final-test artifacts")
+    before = [sha256_file(path) for path in (score_path, saved_path)]
+    scores = pd.read_csv(score_path)
+    saved = pd.read_csv(saved_path)
+    # Verify saved baseline still reproduces, without writing any artifacts.
+    pd.testing.assert_frame_equal(decision.build_scenario_table(scores, cfg), saved)
+    for discount, contacts, contribution in [(.10, 0, 0), (.05, 1500, 7175.92)]:
+        result = decision.evaluate_policy_scenario(scores, cfg, discount, .20, .40, 750)
+        row = result.set_index("policy").loc["proposed"]
+        assert row.customers_targeted == contacts
+        assert row.simulated_net_incremental_margin == pytest.approx(contribution, abs=.005)
+        print(f"\nDiscount {discount:.0%}:\n" + result[["policy", "customers_targeted",
+              "campaign_contact_cost", "simulated_net_incremental_margin", "random_p025_net_margin",
+              "random_p975_net_margin"]].to_string(index=False))
+        # Independently recompute random and RFM totals on saved scores.
+        v = scores["predicted_future_value"].clip(lower=0)
+        r = .20 * scores["rfm_segment"].map(cfg["decision"]["segment_response_multiplier"])
+        net = v * (1 + r) * (1 - discount) - v * (1 + r) * .60 - v * .40 - .50
+        rng = np.random.default_rng(cfg["seed"])
+        totals = [net.iloc[rng.choice(len(net), 1500, replace=False)].sum() for _ in range(1000)]
+        rows = result.set_index("policy")
+        assert rows.loc["non_targeted", "simulated_net_incremental_margin"] == pytest.approx(np.mean(totals))
+        np.testing.assert_allclose(rows.loc["non_targeted", ["random_p025_net_margin", "random_p975_net_margin"]]
+                                   .to_numpy(dtype=float), np.quantile(totals, [.025, .975]))
+        ids = scores.sort_values(["rfm_score", "monetary", "Customer ID"], ascending=[False, False, True]).index[:1500]
+        assert rows.loc["rfm", "simulated_net_incremental_margin"] == pytest.approx(net.loc[ids].sum())
+
+    st.cache_data.clear()
+    calls = []
+    original_mc = decision.monte_carlo_random_policy
+
+    def counted_mc(*args, **kwargs):
+        calls.append(1)
+        return original_mc(*args, **kwargs)
+
+    monkeypatch.setattr(decision, "monte_carlo_random_policy", counted_mc)
+    app = AppTest.from_file(str(Path(__file__).resolve().parent.parent / "dashboard" / "app.py"),
+                           default_timeout=30).run()
+    assert not app.exception and not app.error
+    assert app.metric[1].value == "0" and app.metric[2].value == "£0.00"
+    assert len(app.dataframe[0].value) == 4
+    assert len(calls) == 1
+    app.slider[0].set_value(5).run()
+    assert not app.exception
+    assert app.metric[1].value == "1,500" and app.metric[2].value == "£7,175.92"
+    live = app.dataframe[0].value.copy()
+    assert live.set_index("Policy").loc["Proposed", "Simulated NET Margin"] == "£7,175.92"
+    assert len(calls) == 2
+    # Empty sidebar subset must not alter global policies or rerun simulations.
+    app.sidebar.checkbox(key="countries_all").uncheck().run()
+    assert not app.exception and app.warning
+    pd.testing.assert_frame_equal(live, app.dataframe[0].value)
+    assert len(calls) == 2
+    app.sidebar.checkbox(key="countries_all").check().run()
+    for widget, value in [(app.slider[1], 30), (app.slider[2], 60), (app.number_input[0], 250.0)]:
+        previous = app.dataframe[0].value.copy()
+        count = len(calls)
+        widget.set_value(value).run()
+        assert not app.exception
+        assert not app.dataframe[0].value.equals(previous)
+        assert len(calls) == count + 1
+    reduced = app.dataframe[0].value.set_index("Policy")
+    assert reduced.loc["RFM", "Customers Contacted"] == 500
+    assert reduced.loc["RFM", "Contact Cost"] == "£250.00"
+    app.number_input[0].set_value(0.0).run()
+    assert not app.exception
+    zero = app.dataframe[0].value
+    assert zero["Customers Contacted"].eq(0).all()
+    assert zero["Simulated NET Margin"].eq("£0.00").all()
+    assert "budget allows zero contacts" in app.success[0].value
+    app.segmented_control(key="comparison_mode").set_value("Saved Scenarios").run()
+    assert not app.exception
+    static = app.dataframe[0].value.copy()
+    assert len(static) == 12 and static["Scenario"].nunique() == 3
+    count = len(calls)
+    app.slider[0].set_value(10).run()
+    assert not app.exception
+    pd.testing.assert_frame_equal(static, app.dataframe[0].value)
+    assert len(calls) == count
+    assert len(app.get("plotly_chart")) == 4  # Includes the preserved cohort chart.
+    assert [sha256_file(path) for path in (score_path, saved_path)] == before
+    st.cache_data.clear()
